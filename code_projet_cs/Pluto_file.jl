@@ -148,13 +148,10 @@ md"""
 >
 >``A = U \Sigma V``
 > et ``U^T U = I_n`` \
-> donc `` A^T A = V^T \Sigma ^T U^T U \Sigma V``
->
+> donc `` A^T A = V^T \Sigma ^T U^T U \Sigma V`` \
 > Or   ``U^TU = I``
-> et `` \Sigma ^T = \Sigma`` car elle est diagonale
->
-> Donc : `` A^T A = V^T \Sigma ^2 V``
->
+> et `` \Sigma ^T = \Sigma`` car elle est diagonale \
+> Donc : `` A^T A = V^T \Sigma ^2 V`` \
 > Conclusion : La relation entre les eigenvalues de ``A^T A`` et `` \Sigma`` est juste une question que les termes sont mis au carré.
 ---
 """
@@ -187,8 +184,9 @@ begin
 	"""
 	function cost_std_qr(A::Array, tol::Float64)
 		# Do the qr from julia
-		F = qr(A)
+		Q,R = qr(A)
 		# Check if the approx is correct
+		norm(Q*R - A) < tol
 	end
 end
 
@@ -3208,7 +3206,7 @@ version = "1.9.2+0"
 # ╟─4df44f34-bad1-4174-b5dd-5c9188598a10
 # ╠═c0426804-fc39-4874-9239-c46c2f7519c5
 # ╟─8d0ce6f3-b758-4720-b400-2d49d2659ed9
-# ╠═94e07711-6648-40ec-8ec4-d3b24cfd04d1
+# ╟─94e07711-6648-40ec-8ec4-d3b24cfd04d1
 # ╟─c3347b93-1d44-4bc1-a088-c52b8846de8d
 # ╟─44808382-6188-449a-a6d1-1138f8dbe8b1
 # ╟─4c15b971-5cc0-4561-a246-ebc0b4bd90da
