@@ -186,7 +186,7 @@ begin
 		# Do the qr from julia
 		Q,R = qr(A)
 		# Check if the approx is correct
-		norm(Q*R - A) < tol
+		norm(Q*R - A, 2) < tol
 	end
 end
 
@@ -215,7 +215,21 @@ md"""
 # ╔═╡ fb894a5b-e0a0-42e7-aa03-bcfa8d889413
 md"""
 > **Answer 3 :** \
-> @TODO
+> Algorithme de QR pour ``A∈M₍ₘ,ₙ₎(ℜ)`` : \
+```
+for k = 1,n do
+(1)	β = 2 / vₖᵀvₖ
+	for j = 1,n-k do
+(2)		tmp = vₙᵀ × Colⱼ (vₙ ∈ M₍ₘ₋ₖ₎(ℜ))
+(3)		tmp = β × tmp
+(4)		Colⱼ = Colⱼ - tmp × vₖ
+	end for
+end for
+```
+> Pour l'étape 1 : \
+> Pour l'étape 2 : \
+> Pour l'étape 3 : \
+> Pour l'étape 4 : \
 ---
 """
 
@@ -389,7 +403,7 @@ md"""
 # ╔═╡ 82651b4c-5f5f-4e83-8738-6144e533c9a5
 md"""
 > **Answer 6:** \
-> @TODO
+> @TODO chloe tu t'arrêtes ici, sinon conséquences
 
 ---
 """
@@ -448,7 +462,8 @@ begin
 	
 	# Run many times the cell (Shift + Enter) to ensure the matrix is random.
 	Beta = own_random(large_rows,large_cols)
-	nothing
+	#nothing
+	#Beta' * Beta
 end
 
 # ╔═╡ a73d3ba3-7eca-476d-9d95-f8630197729a
@@ -3217,7 +3232,7 @@ version = "1.9.2+0"
 # ╠═4350ccce-83bd-4fe7-be73-7ffb8d37bbd2
 # ╟─b84f1a43-3cb3-41c7-b302-3b61a68885f3
 # ╟─347fb7c9-e96e-4046-a237-5a1628ca5b4f
-# ╟─fb894a5b-e0a0-42e7-aa03-bcfa8d889413
+# ╠═fb894a5b-e0a0-42e7-aa03-bcfa8d889413
 # ╟─d7c016b8-adcd-4852-96ff-b899c06134b3
 # ╟─8961d5b7-3fe7-4801-99bb-1571bd7fe31f
 # ╟─35a9f521-9e13-411c-9f59-d9c5ffc12d29
