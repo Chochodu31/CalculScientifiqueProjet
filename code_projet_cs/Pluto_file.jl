@@ -215,21 +215,34 @@ md"""
 # ╔═╡ fb894a5b-e0a0-42e7-aa03-bcfa8d889413
 md"""
 > **Answer 3 :** \
-> Algorithme de QR pour ``A∈M₍ₘ,ₙ₎(ℜ)`` : \
+> Algorithme de QR pour $A\in M_{m,n}(\mathbb{R})$ (méthode de reflexion de householder): \
 ```
 for k = 1,n do
-(1)	β = 2 / vₖᵀvₖ
-	for j = 1,n-k do
-(2)		tmp = vₙᵀ × Colⱼ (vₙ ∈ M₍ₘ₋ₖ₎(ℜ))
-(3)		tmp = β × tmp
-(4)		Colⱼ = Colⱼ - tmp × vₖ
-	end for
+	[v, β] = house(A[k:m,k])
+	A(k:m,k+1:n) = (Iₘ₋ₖ₊₁ - βvvᵀ)A(k:m;k+1:n)
+	A(k,k) = -sign(A(k,k))||A(k:m,k)||
+	if k≤m then
+		A(k+1:m,k) = v(2:m-k+1)
+	end if
 end for
 ```
-> Pour l'étape 1 : \
-> Pour l'étape 2 : \
-> Pour l'étape 3 : \
-> Pour l'étape 4 : \
+> D'après le CTD5, la partie la plus chère en complexité est : \
+> $A(k:m,k+1:n) = (I_{m-k+1} - \beta vv^T)A(k:m;k+1:n)$ \
+> \
+> Sachant que : $v \in \mathbb{R}^{m - k + 1}$\
+> $\beta \in \mathbb{R}$\
+> $A(k:m;k+1:n) \in \mathbb{R}^{(m-k+1) \times (n-k)}$\
+> \
+> $(I_{m-k+1} - \beta vv^T)A(k:m;k+1:n) = A(k:m;k+1:n) - \beta vv^TA(k:m;k+1:n)$
+> Concentrons nous sur : 
+> $\beta vv^TA(k:m;k+1:n)$ \
+> Nombre d'opération de $v^TA(k:m;k+1:n) (= w)$ : $(m-k+1)(n-k)$ \
+> Nombre d'opération de $\beta v w$ : $(m-k+1)(n-k)$ \
+> Nombre totale d'opérations pour une iteration: $4 \times (m-k+1)(n-k)$\
+> Donc en prenant en compte la boucle : $4 \sum_{k=1}^{n} (m-k+1)(n-k)$ opérations\
+> Or $4 \sum_{k=1}^{n} (m-k+1)(n-k) \approx 4 \times (n^3/3 + (m-n)n(n-1)/2)$\
+> \
+> Donc la réponse est : 2) ``O(mn^2)``
 ---
 """
 
@@ -3225,14 +3238,14 @@ version = "1.9.2+0"
 # ╟─c3347b93-1d44-4bc1-a088-c52b8846de8d
 # ╟─44808382-6188-449a-a6d1-1138f8dbe8b1
 # ╟─4c15b971-5cc0-4561-a246-ebc0b4bd90da
-# ╠═169daa90-2798-4f2a-b371-a7a313374966
+# ╟─169daa90-2798-4f2a-b371-a7a313374966
 # ╟─edef97e8-b44f-4b3e-be58-680b80f6c832
 # ╟─4b68cae1-d3b2-4051-aaae-12ba10c9d274
 # ╠═00fbe68c-1ff6-4d4d-a372-4e93e6ad05d0
 # ╠═4350ccce-83bd-4fe7-be73-7ffb8d37bbd2
 # ╟─b84f1a43-3cb3-41c7-b302-3b61a68885f3
 # ╟─347fb7c9-e96e-4046-a237-5a1628ca5b4f
-# ╠═fb894a5b-e0a0-42e7-aa03-bcfa8d889413
+# ╟─fb894a5b-e0a0-42e7-aa03-bcfa8d889413
 # ╟─d7c016b8-adcd-4852-96ff-b899c06134b3
 # ╟─8961d5b7-3fe7-4801-99bb-1571bd7fe31f
 # ╟─35a9f521-9e13-411c-9f59-d9c5ffc12d29
