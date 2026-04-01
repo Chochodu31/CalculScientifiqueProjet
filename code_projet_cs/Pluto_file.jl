@@ -255,7 +255,9 @@ md"""
 # ╔═╡ 8961d5b7-3fe7-4801-99bb-1571bd7fe31f
 md"""
 > **Answer 4 :** \
-> @TODO
+> Si on stocke de la même façon, mais en gardant A, alors on obtiens une matrice de même taille que A et toujours le vecteur des ``\beta`` \
+> Donc : $\Re ^{m \times n}$ et $\Re ^{n}$ \
+> Donc : n × (m+1) valeurs
 ---
 """
 
