@@ -421,7 +421,7 @@ md"""
 # ╔═╡ 82651b4c-5f5f-4e83-8738-6144e533c9a5
 md"""
 > **Answer 6:** \
-> @TODO chloe tu t'arrêtes ici, sinon conséquences
+> La Mesure de Haar n'est pas une méthode de génération de matrice random, mais un critère de vérification. On utilise, une des methodes (1 à 4) puis on vérifie que la matrice obtenu est bien random.
 
 ---
 """
@@ -3265,7 +3265,7 @@ version = "1.9.2+0"
 # ╟─7fb26e82-736f-4f26-922a-c40133644098
 # ╟─72341cab-1f3b-49c1-b372-ffe3bf257549
 # ╟─75ee77ca-1f40-427a-b483-ec68c68ea491
-# ╟─82651b4c-5f5f-4e83-8738-6144e533c9a5
+# ╠═82651b4c-5f5f-4e83-8738-6144e533c9a5
 # ╟─1a1ffc32-a583-4ab9-94c1-7546b1c60733
 # ╟─5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
 # ╟─3702b36e-fd82-4ed9-a659-5704e885ff85
