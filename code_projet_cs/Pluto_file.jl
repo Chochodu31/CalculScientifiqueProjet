@@ -310,34 +310,37 @@ md"""
 # ╔═╡ d7fcc295-afe2-42de-8e23-3eaa24377a0a
 ### Answer ###
 begin
-	"""
-		check_symmetric_sol(A::Union{Array,Symmetric})::Bool
+    """
+        check_symmetric_sol(A::Union{Array,Symmetric})::Bool
 
-	# Input :
-	- `A::Union{Array,Symmetric}` : The input matrix to verify if it is symmetric.
+    # Input :
+    - `A::Union{Array,Symmetric}` : The input matrix to verify if it is symmetric.
 
-	# Result :
-	- Boolean
-	"""
-	function check_symmetric_sol(A::Union{Array,Symmetric})::Bool
-		m, n = size(A)
-		
-		# Check is the matrix is square
-		@TODO
-		
-		check = true
-		for i in 1:m
-			j = i+1 
-			while @TODO
-				if @TODO
-					@TODO
-				end
-				j+=1
-			end
-			i+=1
+    # Result :
+    - Boolean
+    """
+    function check_symmetric_sol(A::Union{Array,Symmetric})::Bool
+        m, n = size(A)
+        
+        # Check is the matrix is square
+        if m!=n
+			return false
 		end
-		return check
-	end
+        
+        check = true
+        i = 1
+        while i < m-1
+            j = i+1 
+            while j < m
+                if A[j,i+1] != A[i+1,j]
+                    return false
+                end
+                j+=1
+            end
+            i+=1
+        end
+        return check
+    end
 end
 
 # ╔═╡ 6d231b8c-0ea8-4820-9319-f10ca87ae9e4
@@ -348,9 +351,9 @@ begin
 	
 	# Case of success 
 	# TODO : Make the matrix Herm symmetric
-	for i in @TODO
-		for j in @TODO
-			@TODO
+	for i in 2:size(Herm)[1]
+		for j in i+1:size(Herm)[1]
+			Herm[i,j] = Herm[j,i]
 		end
 	end
 	println(check_symmetric_sol(Herm))
