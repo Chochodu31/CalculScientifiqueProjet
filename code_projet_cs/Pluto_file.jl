@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.20.23
 
 using Markdown
 using InteractiveUtils
@@ -468,9 +468,9 @@ function own_random(m::Int, n::Int)::Array
 	
 	# Generate a orthogonal factor of A
 	Q, R = qr(A)
-	Q = Matrix(Q)
 	
 	return Q
+	
 end
 end
 
@@ -481,9 +481,9 @@ begin
 	# Run many times the cell (Shift + Enter) to ensure the matrix is random.
 	Beta = own_random(large_rows,large_cols)
 	#nothing
-	#Beta' * Beta
 end
 
+# ╔═╡ 8ce176ce-7c48-4f6d-a36f-eaa9341d179f
 # ╔═╡ a73d3ba3-7eca-476d-9d95-f8630197729a
 md"""
 ---
@@ -495,7 +495,8 @@ md"""
 # ╔═╡ 071d85f7-b062-45cf-8d18-dace01f7170c
 md"""
 > **Answer 8 :** \
-> @TODO
+> Il n'y a pas eu de changement apparant dans l'algorithme. mais comme on peut le vérifier a la ligne suivant l'appelle de la fonction, la matrice aléatoire crée est bien une matrice othogonale aléatoire a un facteur 10^-17 près.
+>Pour conclure, le nombre d'opération logique est de 1.
 
 ---
 """
@@ -564,24 +565,21 @@ function plot_eig_sol(f::Function, rows::Int, cols::Int, nb_exec::Int)
 		omega = f(rows,cols)
 		
         # Compute eigenvalues and their angles (theta)
-    	theta = angle.(@TODO)
-
+    	theta = angle.(eigvals(omega))	
 		# Store the current theta phase of omega
-        append!(@TODO, @TODO)
+        append!(theta_all, theta)
     end
 	
 	# Range of theta
 	lambda_range = range(minimum(theta_all),maximum(theta_all),cols)
 	
     # Theoretical Density which is rho(theta) = 1/2pi (SAMPLE)
-    uniform_density = @TODO
-
+    uniform_density = (1 / (2 * pi))
     # Plot the SAMPLE
-    plot(@TODO, fill(uniform_density, length(lambda_range)),
-          label="Theoretical Density", lw=2, color=:black, xlim=(-pi,pi), ylim=(0,0.20))
+    plot(lambda_range, fill(uniform_density, length(lambda_range)), label="Theoretical Density", lw=2, color=:black, xlim=(-pi,pi), ylim=(0,0.20))
 
 	# Plot your density
-	density!(@TODO, marker=:circle)
+	density!(theta_all, marker=:circle)
 
 	# The legend
     xlabel!(L"\theta")
@@ -594,10 +592,10 @@ end
 begin
 	# To test the function
 	# Example to test with a random unitary matrix (Haar distributed)
-	bad_plot = plot_eig_sol(bad_random, @TODO, @TODO, 100)
+	bad_plot = plot_eig_sol(bad_random, small_rows, small_cols, 100)  ##todo
 	
 	# Make your symmetric matrice
-	good_plot = plot_eig_sol(own_random, @TODO, @TODO, 100)
+	good_plot = plot_eig_sol(own_random, small_rows, small_cols, 100) ##todo
 
 	nothing
 end
@@ -657,27 +655,27 @@ function plot_space_dist(f::Function, rows::Int, cols::Int, nb_exec::Int)
 	
    s_all = []
 
-    for i in 1:@TODO
-        U = @TODO
+    for i in 1:nb_exec
+        U = f(rows,cols)
 
 		# Compute eigenvalues
-        theta = angle.(@TODO)
+        theta = angle.(eigvals(U))
 		
 		# Sort theta
-        @TODO
+        sort(theta)
 
         # Nearest-neighbor spacings (difference)
-        s = @TODO
+        s = [theta[end] - theta[end-1]]
         push!(s, 2π - (theta[end] - theta[1]))
 
         # Apply correct scaling: N / (2π)
-        @TODO
+        s = (i/(2*pi)) * s
 
 		# Update the list s_all
-        @TODO
+        append!(s_all, s)
     end
 
-	h = scatterhist(@TODO,
+	h = scatterhist(s_all,
         bins=60,
         normalize=:pdf,
         alpha=0.5,
@@ -690,11 +688,13 @@ function plot_space_dist(f::Function, rows::Int, cols::Int, nb_exec::Int)
     )
 
     # CUE Wigner surmise (for GUE)
-	s_vals = range(0, stop=3.5, length=400)	
-    p_cue = @TODO
-	
+	s_vals = range(0, stop=3.5, length=400)
+	p_cue = []
+	for i in 1:length(s_vals)
+    	append!(p_cue,(32/(pi^2)) * s_all[i]^2 * exp((-4/pi) * s_all[i]^2))
+	end
 
-    plot!(s_vals, @TODO,
+    plot!(s_vals, p_cue,
         lw=3,
         color=:black,
         label="COE theory"
@@ -823,23 +823,29 @@ function own_qrcp(A::Array{Float64,2}, tol::Number)
 
     # Compute colnorm, a vector of size $n$ containing the 2-norms 
 	# of the columns of R
-	@TODO
+	colnorm = []
+	for i = 1:n
+		append!(colnorm, norm(R[i,:], p=2))
+	end
 
     # Set piv, a permutation vector, with (1,2,.., n)
-    @TODO
+    piv = range(1, stop=n, length= n)
 
     for k = 1:n
         # Pivot selection
         # selects p, the column with the highest norm from the remaining columns
-        @TODO
+        p = max(colnorm)
 
         # Convergence check
         # if p has a norm lower than $tol$, we cannot continue
         # we exit the loop and we know the rank of A (which is?)
-        @TODO
-
+        if p < tol
+			exit
+		end
         # Apply the k/p exchange to the relevant objects
-        @TODO
+		#VRAIMENT PAS SUR DE CETTE PARTIE
+		piv[k] = p
+		piv[p] = k
 
         # Householder reflector
         #  Compute v and sigma (see CTD); 
@@ -3243,14 +3249,14 @@ version = "1.9.2+0"
 # ╟─c3347b93-1d44-4bc1-a088-c52b8846de8d
 # ╟─44808382-6188-449a-a6d1-1138f8dbe8b1
 # ╟─4c15b971-5cc0-4561-a246-ebc0b4bd90da
-# ╟─169daa90-2798-4f2a-b371-a7a313374966
+# ╠═169daa90-2798-4f2a-b371-a7a313374966
 # ╟─edef97e8-b44f-4b3e-be58-680b80f6c832
 # ╟─4b68cae1-d3b2-4051-aaae-12ba10c9d274
 # ╠═00fbe68c-1ff6-4d4d-a372-4e93e6ad05d0
 # ╠═4350ccce-83bd-4fe7-be73-7ffb8d37bbd2
 # ╟─b84f1a43-3cb3-41c7-b302-3b61a68885f3
 # ╟─347fb7c9-e96e-4046-a237-5a1628ca5b4f
-# ╟─fb894a5b-e0a0-42e7-aa03-bcfa8d889413
+# ╠═fb894a5b-e0a0-42e7-aa03-bcfa8d889413
 # ╟─d7c016b8-adcd-4852-96ff-b899c06134b3
 # ╟─8961d5b7-3fe7-4801-99bb-1571bd7fe31f
 # ╟─35a9f521-9e13-411c-9f59-d9c5ffc12d29
@@ -3265,14 +3271,15 @@ version = "1.9.2+0"
 # ╟─7fb26e82-736f-4f26-922a-c40133644098
 # ╟─72341cab-1f3b-49c1-b372-ffe3bf257549
 # ╟─75ee77ca-1f40-427a-b483-ec68c68ea491
-# ╠═82651b4c-5f5f-4e83-8738-6144e533c9a5
+# ╟─82651b4c-5f5f-4e83-8738-6144e533c9a5
 # ╟─1a1ffc32-a583-4ab9-94c1-7546b1c60733
 # ╟─5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
 # ╟─3702b36e-fd82-4ed9-a659-5704e885ff85
 # ╠═4683b60e-9190-49ea-b0e4-641f02198dab
 # ╠═29d2aae4-2aa4-4966-b970-816c6d04025c
+# ╠═8ce176ce-7c48-4f6d-a36f-eaa9341d179f
 # ╟─a73d3ba3-7eca-476d-9d95-f8630197729a
-# ╟─071d85f7-b062-45cf-8d18-dace01f7170c
+# ╠═071d85f7-b062-45cf-8d18-dace01f7170c
 # ╟─adca2886-9f4b-4506-8e69-c3faa56a098b
 # ╟─041920d3-d3a8-4e34-9c70-3b76ffc068f6
 # ╟─39aeaf1f-20e2-4a8c-9750-49ff1fbfe54f
