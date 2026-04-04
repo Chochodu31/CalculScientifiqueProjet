@@ -215,21 +215,34 @@ md"""
 # ╔═╡ fb894a5b-e0a0-42e7-aa03-bcfa8d889413
 md"""
 > **Answer 3 :** \
-> Algorithme de QR pour ``A∈M₍ₘ,ₙ₎(ℜ)`` : \
+> Algorithme de QR pour $A\in M_{m,n}(\mathbb{R})$ (méthode de reflexion de householder): \
 ```
 for k = 1,n do
-(1)	β = 2 / vₖᵀvₖ
-	for j = 1,n-k do
-(2)		tmp = vₙᵀ × Colⱼ (vₙ ∈ M₍ₘ₋ₖ₎(ℜ))
-(3)		tmp = β × tmp
-(4)		Colⱼ = Colⱼ - tmp × vₖ
-	end for
+	[v, β] = house(A[k:m,k])
+	A(k:m,k+1:n) = (Iₘ₋ₖ₊₁ - βvvᵀ)A(k:m;k+1:n)
+	A(k,k) = -sign(A(k,k))||A(k:m,k)||
+	if k≤m then
+		A(k+1:m,k) = v(2:m-k+1)
+	end if
 end for
 ```
-> Pour l'étape 1 : \
-> Pour l'étape 2 : \
-> Pour l'étape 3 : \
-> Pour l'étape 4 : \
+> D'après le CTD5, la partie la plus chère en complexité est : \
+> $A(k:m,k+1:n) = (I_{m-k+1} - \beta vv^T)A(k:m;k+1:n)$ \
+> \
+> Sachant que : $v \in \mathbb{R}^{m - k + 1}$\
+> $\beta \in \mathbb{R}$\
+> $A(k:m;k+1:n) \in \mathbb{R}^{(m-k+1) \times (n-k)}$\
+> \
+> $(I_{m-k+1} - \beta vv^T)A(k:m;k+1:n) = A(k:m;k+1:n) - \beta vv^TA(k:m;k+1:n)$
+> Concentrons nous sur : 
+> $\beta vv^TA(k:m;k+1:n)$ \
+> Nombre d'opération de $v^TA(k:m;k+1:n) (= w)$ : $(m-k+1)(n-k)$ \
+> Nombre d'opération de $\beta v w$ : $(m-k+1)(n-k)$ \
+> Nombre totale d'opérations pour une iteration: $4 \times (m-k+1)(n-k)$\
+> Donc en prenant en compte la boucle : $4 \sum_{k=1}^{n} (m-k+1)(n-k)$ opérations\
+> Or $4 \sum_{k=1}^{n} (m-k+1)(n-k) \approx 4 \times (n^3/3 + (m-n)n(n-1)/2)$\
+> \
+> Donc la réponse est : 2) ``O(mn^2)``
 ---
 """
 
@@ -242,7 +255,9 @@ md"""
 # ╔═╡ 8961d5b7-3fe7-4801-99bb-1571bd7fe31f
 md"""
 > **Answer 4 :** \
-> @TODO
+> Si on stocke de la même façon, mais en gardant A, alors on obtiens une matrice de même taille que A et toujours le vecteur des ``\beta`` \
+> Donc : $\Re ^{m \times n}$ et $\Re ^{n}$ \
+> Donc : n × (m+1) valeurs
 ---
 """
 
@@ -295,34 +310,37 @@ md"""
 # ╔═╡ d7fcc295-afe2-42de-8e23-3eaa24377a0a
 ### Answer ###
 begin
-	"""
-		check_symmetric_sol(A::Union{Array,Symmetric})::Bool
+    """
+        check_symmetric_sol(A::Union{Array,Symmetric})::Bool
 
-	# Input :
-	- `A::Union{Array,Symmetric}` : The input matrix to verify if it is symmetric.
+    # Input :
+    - `A::Union{Array,Symmetric}` : The input matrix to verify if it is symmetric.
 
-	# Result :
-	- Boolean
-	"""
-	function check_symmetric_sol(A::Union{Array,Symmetric})::Bool
-		m, n = size(A)
-		
-		# Check is the matrix is square
-		@TODO
-		
-		check = true
-		for i in 1:m
-			j = i+1 
-			while @TODO
-				if @TODO
-					@TODO
-				end
-				j+=1
-			end
-			i+=1
+    # Result :
+    - Boolean
+    """
+    function check_symmetric_sol(A::Union{Array,Symmetric})::Bool
+        m, n = size(A)
+        
+        # Check is the matrix is square
+        if m!=n
+			return false
 		end
-		return check
-	end
+        
+        check = true
+        i = 1
+        while i < m-1
+            j = i+1 
+            while j < m
+                if A[j,i+1] != A[i+1,j]
+                    return false
+                end
+                j+=1
+            end
+            i+=1
+        end
+        return check
+    end
 end
 
 # ╔═╡ 6d231b8c-0ea8-4820-9319-f10ca87ae9e4
@@ -333,9 +351,9 @@ begin
 	
 	# Case of success 
 	# TODO : Make the matrix Herm symmetric
-	for i in @TODO
-		for j in @TODO
-			@TODO
+	for i in 2:size(Herm)[1]
+		for j in i+1:size(Herm)[1]
+			Herm[i,j] = Herm[j,i]
 		end
 	end
 	println(check_symmetric_sol(Herm))
@@ -403,7 +421,7 @@ md"""
 # ╔═╡ 82651b4c-5f5f-4e83-8738-6144e533c9a5
 md"""
 > **Answer 6:** \
-> @TODO chloe tu t'arrêtes ici, sinon conséquences
+> La Mesure de Haar n'est pas une méthode de génération de matrice random, mais un critère de vérification. On utilise, une des methodes (1 à 4) puis on vérifie que la matrice obtenu est bien random.
 
 ---
 """
@@ -450,7 +468,7 @@ function own_random(m::Int, n::Int)::Array
 	
 	# Generate a orthogonal factor of A
 	Q, R = qr(A)
-	#(sum(A - Q * R) < tol) renvoie true
+	
 	return Q
 	
 end
@@ -463,13 +481,9 @@ begin
 	# Run many times the cell (Shift + Enter) to ensure the matrix is random.
 	Beta = own_random(large_rows,large_cols)
 	#nothing
-	(sum((Beta * Transpose(Beta)) - Matrix(1.0I, large_rows, large_cols)) < tol) # matrice orthogonale a un facteur 10^-17 près
-	
 end
 
 # ╔═╡ 8ce176ce-7c48-4f6d-a36f-eaa9341d179f
-
-
 # ╔═╡ a73d3ba3-7eca-476d-9d95-f8630197729a
 md"""
 ---
