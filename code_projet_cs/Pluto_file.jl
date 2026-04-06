@@ -469,7 +469,7 @@ function own_random(m::Int, n::Int)::Array
 	# Generate a orthogonal factor of A
 	Q, R = qr(A)
 	
-	return Q
+	return Q * Diagonal(sign.(diag(R)))
 	
 end
 end
