@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.23
+# v0.20.24
 
 using Markdown
 using InteractiveUtils
@@ -828,71 +828,61 @@ function own_qrcp(A::Array{Float64,2}, tol::Number)
     # Compute colnorm, a vector of size $n$ containing the 2-norms 
 	# of the columns of R
 	colnorm = []
-	for i = 1:m
-		append!(colnorm, norm(R[i,:], 2))
+	for i = 1:n # ICI
+		append!(colnorm, norm(R[:, i], 2)) # ICI
 	end
 	
     # Set piv, a permutation vector, with (1,2,.., n)
 	piv = [i for i = 1:n]
-    for k = 1:n
+    for k = 1:min(n, m)
         # Pivot selection
         # selects p, the column with the highest norm from the remaining columns
-        p, p_index = findmax(colnorm)
-		p_colonne = R[k:end, p_index]
-		print(size(p_colonne))
+        p, p_index = findmax(colnorm[k:n])
+		p_colonne = R[k:end, p_index] # end = m ICI
+
         # Convergence check
         # if p has a norm lower than $tol$, we cannot continue
         # we exit the loop and we know the rank of A (which is?)
         if p < tol
-			exit
+			rk = k - 1
+			break
 		end
         # Apply the k/p exchange to the relevant objects
-		piv[k] = p_index
-		piv[p_index] = k
-		R[k,:], R[p_index,:] = R[p_index,:], R[k,:]
+		piv[k], piv[p_index] = piv[p_index], piv[k] # On avait faut, il se peut qu'il y ai eu des pivots avant, il faut échanger les valeurs ! 
+		R[:, k], R[:, p_index] = R[:, p_index], R[:, k]
 
         # Householder reflector
         #  Compute v and sigma (see CTD); 
 		#  we chose to have $v$ with a 2-norm equals to 1
-		sigma = sign(p[1])*norm(p_colonne)	# ok
+		# sigma = sign(p[1])*norm(p_colonne)	# ok
+		
 		
 		# création de e1
 		e1 = zeros(size(p_colonne))
-		e1[1] = 1 #norm(p)			# ok
-		println(typeof(p_colonne))
-		println(typeof(sigma))
-		println(typeof(e1))
-		u = p_colonne - rmul!(e1, sigma) 		# ok
-		v = u / norm(u) 		# ok
+		e1[1] = 1
+		u = p_colonne - norm(p_colonne) * sign(p_colonne[1]) * e1
+		if norm(u, 2) != 0 # ICI : vérif de pas obtenir un NaN (not a number)
+			v = u / norm(u, 2) # ICI
+		else # ICI
+			v = u # ICI
+		end # ICI
 
-		houseQ = Matrix{Float64}(I, m-k+1, m-k+1) - sigma*v*transpose(v)
-		CorrectionHouseQ = zeros(m, m)
+		houseQ = Matrix{Float64}(I, m-k+1, m-k+1) - 2 *v*transpose(v) # ICI : erreur de ma part pour la formation de la matrice de householder
 		
-		for i = 1:m-k
-			CorrectionHouseQ[i,i] = 1 
-		end
-		print(k)
-		if k-1 != 0
-			for i = k-1:m
-				CorrectionHouseQ[i,n-m+k-1:end] = houseQ[i,:]
-			end
-		end
-
 		# Création d'une nouvelle matrice remplie avec la valeur donnée
-    	#padded = fill(value, m + pad_top + pad_bottom, n + pad_left + pad_right)
-    	# Copie de la matrice originale au centre
-    	#padded[pad_top+1 : pad_top+m, pad_left+1 : pad_left+n] .= mat
+		CorrectionHouseQ = Matrix{Float64}(I, m, m)
+		CorrectionHouseQ[k:m, k:m]=houseQ # ICI : pourquoi ça marchait pas, j'en sais rien.
 		
         # Apply reflector to R
-        R =  houseQ * R
+        R =  CorrectionHouseQ * R # ICI : changement Q
 
         # Apply reflector to Q
-        Q =  Q * houseQ
+        Q =  Q * CorrectionHouseQ # ICI : changement Q
 
         # Update column norms
 		#update ton colnorm supposé OK
-		for i = k:m 		# may be m
-			append!(colnorm, norm(R[i,k:end], 2))
+		for i = k:n 		# may be m
+			colnorm[i] = norm(R[k:end, i], 2) # ICI : on faisait append donc colnorm devenait de plus en plus grand
 		end
         
     end
