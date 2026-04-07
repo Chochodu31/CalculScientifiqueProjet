@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.20.23
 
 using Markdown
 using InteractiveUtils
@@ -468,11 +468,14 @@ function own_random(m::Int, n::Int)::Array
 	
 	# Generate a orthogonal factor of A
 	Q, R = qr(A)
-	
-	return Q * Diagonal(sign.(diag(R)))
+
+	return  Q * Diagonal(sign.(diag(R)))
 	
 end
 end
+
+# ╔═╡ 4f9066df-698c-4f0a-9d6d-37714c6eee12
+
 
 # ╔═╡ 29d2aae4-2aa4-4966-b970-816c6d04025c
 begin
@@ -495,8 +498,8 @@ md"""
 # ╔═╡ 071d85f7-b062-45cf-8d18-dace01f7170c
 md"""
 > **Answer 8 :** \
-> Il n'y a pas eu de changement apparant dans l'algorithme. mais comme on peut le vérifier a la ligne suivant l'appelle de la fonction, la matrice aléatoire crée est bien une matrice othogonale aléatoire a un facteur 10^-17 près.
->Pour conclure, le nombre d'opération logique est de 1.
+> On a multipié notre matrice Q par L pour obtenir Q'. L étend de taille R, min(n,m)².
+>On obtient un nombre d'opération logique de : (m*n) * (m*n) donc ``m^{2} * n^{2}``, et si on >suppose que m = n. On a un nombre d'opération logique de ``n^{4}`` ou ``m^{4}``
 
 ---
 """
@@ -816,6 +819,7 @@ function own_qrcp(A::Array{Float64,2}, tol::Number)
 	R = copy(A)
 	# Take matrix sizes
     m, n = size(A)
+	
 	# Result rk, rank of A a priori n if A is full rank
 	rk = n
   	# Initialize Q with I_m
@@ -824,18 +828,18 @@ function own_qrcp(A::Array{Float64,2}, tol::Number)
     # Compute colnorm, a vector of size $n$ containing the 2-norms 
 	# of the columns of R
 	colnorm = []
-	for i = 1:n
-		append!(colnorm, norm(R[i,:], p=2))
+	for i = 1:m
+		append!(colnorm, norm(R[i,:], 2))
 	end
-
+	
     # Set piv, a permutation vector, with (1,2,.., n)
-    piv = range(1, stop=n, length= n)
-
+	piv = [i for i = 1:n]
     for k = 1:n
         # Pivot selection
         # selects p, the column with the highest norm from the remaining columns
-        p = max(colnorm)
-
+        p, p_index = findmax(colnorm)
+		p_colonne = R[k:end, p_index]
+		print(size(p_colonne))
         # Convergence check
         # if p has a norm lower than $tol$, we cannot continue
         # we exit the loop and we know the rank of A (which is?)
@@ -843,23 +847,53 @@ function own_qrcp(A::Array{Float64,2}, tol::Number)
 			exit
 		end
         # Apply the k/p exchange to the relevant objects
-		#VRAIMENT PAS SUR DE CETTE PARTIE
-		piv[k] = p
-		piv[p] = k
+		piv[k] = p_index
+		piv[p_index] = k
+		R[k,:], R[p_index,:] = R[p_index,:], R[k,:]
 
         # Householder reflector
         #  Compute v and sigma (see CTD); 
 		#  we chose to have $v$ with a 2-norm equals to 1
-        @TODO
+		sigma = sign(p[1])*norm(p_colonne)	# ok
+		
+		# création de e1
+		e1 = zeros(size(p_colonne))
+		e1[1] = 1 #norm(p)			# ok
+		println(typeof(p_colonne))
+		println(typeof(sigma))
+		println(typeof(e1))
+		u = p_colonne - rmul!(e1, sigma) 		# ok
+		v = u / norm(u) 		# ok
 
+		houseQ = Matrix{Float64}(I, m-k+1, m-k+1) - sigma*v*transpose(v)
+		CorrectionHouseQ = zeros(m, m)
+		
+		for i = 1:m-k
+			CorrectionHouseQ[i,i] = 1 
+		end
+		print(k)
+		if k-1 != 0
+			for i = k-1:m
+				CorrectionHouseQ[i,n-m+k-1:end] = houseQ[i,:]
+			end
+		end
+
+		# Création d'une nouvelle matrice remplie avec la valeur donnée
+    	#padded = fill(value, m + pad_top + pad_bottom, n + pad_left + pad_right)
+    	# Copie de la matrice originale au centre
+    	#padded[pad_top+1 : pad_top+m, pad_left+1 : pad_left+n] .= mat
+		
         # Apply reflector to R
-        @TODO
+        R =  houseQ * R
 
         # Apply reflector to Q
-        @TODO
+        Q =  Q * houseQ
 
         # Update column norms
-        @TODO
+		#update ton colnorm supposé OK
+		for i = k:m 		# may be m
+			append!(colnorm, norm(R[i,k:end], 2))
+		end
         
     end
 
@@ -3273,12 +3307,13 @@ version = "1.9.2+0"
 # ╟─75ee77ca-1f40-427a-b483-ec68c68ea491
 # ╟─82651b4c-5f5f-4e83-8738-6144e533c9a5
 # ╟─1a1ffc32-a583-4ab9-94c1-7546b1c60733
-# ╟─5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
+# ╠═5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
 # ╟─3702b36e-fd82-4ed9-a659-5704e885ff85
 # ╠═4683b60e-9190-49ea-b0e4-641f02198dab
+# ╠═4f9066df-698c-4f0a-9d6d-37714c6eee12
 # ╠═29d2aae4-2aa4-4966-b970-816c6d04025c
 # ╟─8ce176ce-7c48-4f6d-a36f-eaa9341d179f
-# ╟─071d85f7-b062-45cf-8d18-dace01f7170c
+# ╠═071d85f7-b062-45cf-8d18-dace01f7170c
 # ╟─adca2886-9f4b-4506-8e69-c3faa56a098b
 # ╟─041920d3-d3a8-4e34-9c70-3b76ffc068f6
 # ╟─39aeaf1f-20e2-4a8c-9750-49ff1fbfe54f
