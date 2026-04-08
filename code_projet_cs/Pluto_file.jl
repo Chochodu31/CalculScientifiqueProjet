@@ -596,10 +596,10 @@ end
 begin
 	# To test the function
 	# Example to test with a random unitary matrix (Haar distributed)
-	bad_plot = plot_eig_sol(bad_random, small_rows, small_cols, 100)  ##todo
+	bad_plot = plot_eig_sol(bad_random, large_rows, large_cols, 100)  ##todo
 	
 	# Make your symmetric matrice
-	good_plot = plot_eig_sol(own_random, small_rows, small_cols, 100) ##todo
+	good_plot = plot_eig_sol(own_random, large_rows, large_cols, 100) ##todo
 
 	nothing
 end
@@ -968,51 +968,52 @@ function benchmark_qrcp(min_sizes::Int, max_sizes::Int, steps::Int)
 
 	# Time comparaison :
 	# Set vectors of time for matrix A and transform matrix B
-    t_own = @TODO
-    t_own_random = @TODO
+    t_own = zeros(length(sizes)) #TODO
+    t_own_random = zeros(length(sizes)) #TODO
 	
 	# Accuracy comparaison 
 	# Set vectors of accuracy for matrix A and transform matrix B
-	err_own = @TODO
-    err_own_random = @TODO
+	err_own = zeros(length(sizes)) #TODO
+    err_own_random = zeros(length(sizes)) #TODO
 
 	# For loop to execute and store the accuracy and time of each execution
     for (i, n) in enumerate(sizes)
 		# Size of biggest dimension
 		mbench = 3*n
 		# Generate the matrix A
-        Abench = @TODO
+        Abench = own_random(n, n) #pas trop sûre
 
         # Benchmark custom QRCP
 		Q, R, p, rk = own_qrcp(Abench, tol)
 		
 		# Store the error approximation
-        @TODO
+        err_own[i] = norm(Abench - Q*R, 2)
 		# Store the time (with @elapsed)
         t_own[i] = @elapsed own_qrcp(Abench, tol)
 
 		# Generate the random matrix Omega
-		@TODO
+		Omega = own_random(n, n)
 		# Generate the transform matrix B
-		@TODO
+		B = Omega * Abench
+		AObench = B
         # Benchmark custom rand QRCP
 		rQ, rR, rp, rrk = own_qrcp(AObench, tol)
 
 		# Store the error approximation
-        @TODO
+        err_own_random[i] = norm(Abench[:,rp] - rQ*rR, 2)
 		# Store the time (with @elapsed)
         t_own_random[i] = @elapsed own_qrcp(AObench, tol)
     end
 
 	# Generate the plot of the error of the matrix A
-	p_err = plot(@TODO, @TODO, yscale = :log10, lw = 2, marker = :o, label = "Own QRCP", xlabel = "Matrix size (n)", ylabel = "‖A − QR‖", title = "QRCP Accuracy Comparison")
+	p_err = plot(sizes, err_own, yscale = :log10, lw = 2, marker = :o, label = "Own QRCP", xlabel = "Matrix size (n)", ylabel = "‖A − QR‖", title = "QRCP Accuracy Comparison")
 	# Add the error of the transform matrix B in the plot
     plot!(sizes, err_own_random, lw = 2, marker = :square, label = "random Own QRCP")
 
 	# Generate the plot of the time of the matrix A
 	p_time = plot(sizes, t_own, yscale = :log10, lw = 2, marker = :o, label = "Own QRCP", 			 xlabel = "Matrix size (n)", ylabel = "time", title = "QRCP time Comparison")
 	# Add the time of the transform matrix B in the plot
-    plot!(@TODO, @TODO, lw = 2, marker = :square, label = "random Own QRCP")
+    plot!(sizes, t_own_random, lw = 2, marker = :square, label = "random Own QRCP")
 
 	# Return the plot of the error, time and their vectors values
 	return p_err, p_time, err_own, t_own, err_own_random, t_own_random
