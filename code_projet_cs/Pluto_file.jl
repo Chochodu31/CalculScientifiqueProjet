@@ -474,16 +474,13 @@ function own_random(m::Int, n::Int)::Array
 end
 end
 
-# ╔═╡ 4f9066df-698c-4f0a-9d6d-37714c6eee12
-
-
 # ╔═╡ 29d2aae4-2aa4-4966-b970-816c6d04025c
 begin
 	# To test the function
 	
 	# Run many times the cell (Shift + Enter) to ensure the matrix is random.
 	Beta = own_random(large_rows,large_cols)
-	#nothing
+	nothing
 end
 
 # ╔═╡ 8ce176ce-7c48-4f6d-a36f-eaa9341d179f
@@ -566,19 +563,23 @@ function plot_eig_sol(f::Function, rows::Int, cols::Int, nb_exec::Int)
 
     for i in 1:nb_exec
 		omega = f(rows,cols)
-		
+		lambda = eigen(omega)
         # Compute eigenvalues and their angles (theta)
-    	theta = angle.(eigvals(omega))	
+    	theta = angle.(lambda.values)
+		
 		# Store the current theta phase of omega
         append!(theta_all, theta)
     end
-	
+	ep = mean((theta_all .- mean(theta_all)).^2)
+
+	println(ep)	
 	# Range of theta
 	lambda_range = range(minimum(theta_all),maximum(theta_all),cols)
 	
     # Theoretical Density which is rho(theta) = 1/2pi (SAMPLE)
     uniform_density = (1 / (2 * pi))
-    # Plot the SAMPLE
+    
+	# Plot the SAMPLE
     plot(lambda_range, fill(uniform_density, length(lambda_range)), label="Theoretical Density", lw=2, color=:black, xlim=(-pi,pi), ylim=(0,0.20))
 
 	# Plot your density
@@ -659,25 +660,42 @@ function plot_space_dist(f::Function, rows::Int, cols::Int, nb_exec::Int)
    s_all = []
 
     for i in 1:nb_exec
-        U = f(rows,cols)
+        U = f(rows,cols) 	#ok
 
 		# Compute eigenvalues
-        theta = angle.(eigvals(U))
+        theta = angle.(eigvals(U))	#ok
+		# print("taille de theta : ")
+		# println(size(theta))
 		
 		# Sort theta
-        sort(theta)
+        sort!(theta)		#ok
 
+		
         # Nearest-neighbor spacings (difference)
-        s = [theta[end] - theta[end-1]]
-        push!(s, 2π - (theta[end] - theta[1]))
-
+  #       s = [theta[end] - theta[end-1]]
+		# print("Taille de ancien s : ")
+		# println(sizeof(s))
+		# print(theta[end] - theta[end-1])
+		s = [theta[i+1] - theta[i] for i=1:length(theta)-1]
+		# print("Taille de ancien s : ")
+		# println(size(s))
+		push!(s, 2π - (theta[end] - theta[1]))
+		
         # Apply correct scaling: N / (2π)
-        s = (i/(2*pi)) * s
+        s = (length(theta)/(2*pi)) * s 		
+
+		# print("Taille de s : ")
+		# println(size(s))
+		# println(mean(s))
 
 		# Update the list s_all
         append!(s_all, s)
     end
 
+	# print("taille s_all : ")
+	# println(sizeof(s_all))
+	# println(s_all)
+	
 	h = scatterhist(s_all,
         bins=60,
         normalize=:pdf,
@@ -690,12 +708,10 @@ function plot_space_dist(f::Function, rows::Int, cols::Int, nb_exec::Int)
         title="CUE Eigenvalue Spacing Distribution"
     )
 
+	
     # CUE Wigner surmise (for GUE)
 	s_vals = range(0, stop=3.5, length=400)
-	p_cue = []
-	for i in 1:length(s_vals)
-    	append!(p_cue,(32/(pi^2)) * s_all[i]^2 * exp((-4/pi) * s_all[i]^2))
-	end
+	p_cue = [(32 / (pi^2))*(s_vals[i]^2)*exp(-(4/pi) * s_vals[i]^2) for i=1:length(s_vals)]
 
     plot!(s_vals, p_cue,
         lw=3,
@@ -3297,13 +3313,12 @@ version = "1.9.2+0"
 # ╟─75ee77ca-1f40-427a-b483-ec68c68ea491
 # ╟─82651b4c-5f5f-4e83-8738-6144e533c9a5
 # ╟─1a1ffc32-a583-4ab9-94c1-7546b1c60733
-# ╠═5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
+# ╟─5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
 # ╟─3702b36e-fd82-4ed9-a659-5704e885ff85
 # ╠═4683b60e-9190-49ea-b0e4-641f02198dab
-# ╠═4f9066df-698c-4f0a-9d6d-37714c6eee12
 # ╠═29d2aae4-2aa4-4966-b970-816c6d04025c
 # ╟─8ce176ce-7c48-4f6d-a36f-eaa9341d179f
-# ╠═071d85f7-b062-45cf-8d18-dace01f7170c
+# ╟─071d85f7-b062-45cf-8d18-dace01f7170c
 # ╟─adca2886-9f4b-4506-8e69-c3faa56a098b
 # ╟─041920d3-d3a8-4e34-9c70-3b76ffc068f6
 # ╟─39aeaf1f-20e2-4a8c-9750-49ff1fbfe54f
