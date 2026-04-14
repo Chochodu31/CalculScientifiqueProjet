@@ -4,7 +4,7 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ 2eeb3b3d-c790-4b91-ad78-70ff4fb8081b
+# ╔═╡ 11885856-51c2-4522-bf13-fdbc3a2d3f39
 begin
 # Libraries
 using PlutoUI
@@ -21,6 +21,7 @@ using BenchmarkTools
 using Tensors
 using StatsPlots
 
+@inline tuplejoin(x, y) = (x..., y...)
 function bad_random(m::Int, n::Int)::Array
 	A = randn(m, n)
 	# Generate a orthogonal factor of A
@@ -32,1006 +33,820 @@ end
 nothing
 end
 
-# ╔═╡ a6ea2397-fee6-4f82-b34e-fca09e11a870
+# ╔═╡ 6fa90144-6885-4816-864c-6e779f169583
 md"""
-![Logo](https://upload.wikimedia.org/wikipedia/fr/1/1b/Logo-toulouse-inp-N7.png)
-# Introduction to Randomized Methods with applications
+## IV. Application: Tensor low-rank approximation (2nd session)
 """
 
-# ╔═╡ 4df44f34-bad1-4174-b5dd-5c9188598a10
+# ╔═╡ 573225a7-f31a-43aa-aa97-3ff62cb5cf64
 md"""
-Cell that contains all given variables for the project (**No modification**):
+**Goal :**\
+During this second session of the Project, we focus on tensor low-rank approximation using randomized methods. This approach will compress a full dense tensor ``\mathcal{X}`` into a **Tucker tensor**, which will be described later.
 """
 
-# ╔═╡ c0426804-fc39-4874-9239-c46c2f7519c5
+# ╔═╡ 539c856e-a3f3-40a9-a3ad-be0fffca3a75
+md"""
+The main application of this project will be to do a *LRA* (Low-Rank Approximation) on a **tensor** (matrix in higher order of 2).
+
+> **Definition :** Tensor
+>
+> **Tensor**  is a multidimensional array of data with several dimensions greater than two, and denoted ``\mathcal{X}``. \
+>The **order** of a tensor is its number of dimensions, and the size of a dimension is the number of elements it contains. \
+> Tensors’ elements are indexed by the order they have (as matrices) ; for example, the element ``x_{i,j,k}`` is the element at the ``i``th row, ``j``th column, and ``k``th depth of the tensor ``\mathcal{X} \in \mathbb{R}^{n_{1}\times n_{2} \times n_{3}}``.
+
+Tensor are often present in *quantum computing* or *physics application* to store huge amount of linked data.
+In fact, matrix are the specification of tensor in order two.
+"""
+
+# ╔═╡ 20615c19-6af0-462b-a3a2-3a2b225772ff
+md"""
+---
+> **_Question 15 :_** \
+> What would a tensor of order `0` be? And order `1`?
+"""
+
+# ╔═╡ 831f236b-05af-4838-a5f9-5ca34bed7b80
+md"""
+> **Answer 15 :** \
+> Un tensor d'ordre 0 est un scalaire. \
+> Un tensor d'ordre 1 est un vecteur.
+---
+"""
+
+# ╔═╡ 9802f6b6-4aa1-42c2-9ea8-8f7db3fcf022
+md"""
+A challenge when using tensor objects is the exponential growth in the number of elements with respect to their order; specifically, an order-d tensor requires ``O(n^d)`` elements if there are ``n`` elements for each dimension.\
+This issue, known as the **curse of dimensionality**, poses significant computational challenges in computer science. \
+
+##### **Our objective 1 :** Make a LRA for a specific tensor ``\mathcal{X}`` !
+"""
+
+# ╔═╡ fd10360a-752d-440c-a1d4-b38ab4199601
+md"""
+---
+### IV.1. The Tucker Tensor
+
+In this project we will focus on a specific type of tensor decomposition, named **Tucker Tensor**[^2], without delving too deeply into its details..
+
+The important property of it is :\
+---the tensor ``\mathcal{X} \in \mathbb{R}^{n_1 \times n_2 \times n_3}`` in Tucker format is represented by a large central tensor, often named **core** (``\mathcal{G} \in \mathbb{R}^{d_1 \times d_2 \times d_3}``), where each dimension of ``\mathcal{G}`` are linked to a matrix ``U_i \in \mathbb{R}^{n_i \times d_i}`` along the ``i``th dimension of ``\mathcal{G}``.
+
+In the figure below, we have the **full dense** tensor ``\mathcal{X}`` with dimension ``I_1 \times I_2 \times I_3`` (corresponding to ``n_i`` dimension above), and we want to decompose it into **Tucker tensor** as shown at the right. The dimension of the core ``\mathcal{G}`` is ``R_1 \times R_2 \times R_3`` (corresponding to ``d_i`` dimension above).
+
+[^2] : *Some mathematical notes on three-mode factor analysis*, Tucker, Ledyard R
+"""
+
+# ╔═╡ 7fe5fcea-8ab8-4acd-8a8f-c5c297e7ba91
 begin
-## Small matrix to verify some functions ##
-small_rows = 10 
-small_cols = 20
-A_small = randn(small_rows,small_cols)
+img_path_Tucker = "fig/TuckerOnline.png"
+img_Tucker = load(img_path_Tucker)
+end
 
-## Creation of Non-symmetric/Symmetric matrix for Algo 2 ##
-Usual = rand(small_cols, small_cols)
-Herm = copy(Usual)
+# ╔═╡ 98bb8a73-c212-49ba-847c-d450670dfab2
+begin
+md"""
+##### Easy visualization trough the Tensor Network Diagram :
 
-## Large sizes ##
-large_rows = 1000
-large_cols = 1000
-A_large = randn(large_rows,large_cols)
+An other way to see tensor object is as a node of a diagram graph where edges represent their dimensions.
 
-## Random matrix for the QRCP algorithme (in section II) ##
-Omega = randn(max(small_rows,small_cols),min(small_rows,small_cols))
-B_small = A_small * Omega
-# Large case
-Omega_large = randn(5*max(large_rows,large_cols),min(large_rows,large_cols))
-B_large = randn(large_rows,5*large_cols) * Omega_large
+Below we represent the Tensor Network diagram of different order starting from scalar ``x`` to tensor ``\mathcal{X}  \in \mathbb{R}^{n_1 \times n_2 \times n_3}``.
+
+-- Legends : \
+. Nodes : tensors of order of the degree of the node. \
+. Edges : dimensions of the tensor.
+"""
+end
+
+# ╔═╡ a03e8065-7e84-44c0-bf01-d4dfdeeca250
+begin
+	img_path_Diagram = "fig/TensorDiagram.png"
+img_Diagram = load(img_path_Diagram)
+end
+
+# ╔═╡ 51ff9375-5321-44be-bdad-629f3b7151ba
+md"""
+Based on this representation, the image of the transformation of ``\mathcal{X}`` into Tucker Tensor with adequate low-rank approximation (HOSVD, see later) looks like:
+"""
+
+# ╔═╡ 90bbf108-6916-4d98-8f60-940831249688
+begin
+	img_path_TuckerTN = "fig/TuckerTN.png"
+img_TuckerTN = load(img_path_TuckerTN)
+end
+
+# ╔═╡ 880c457c-e5de-4ad7-a7fb-06296ed44196
+md"""
+Before starting the decomposition, we will introduce the `TuckerTensor` structure to create a Tucker tensor object that stores all its constituent elements. Additionally, we will provide auxiliary functions to assist with the decomposition implementation.
+
+Here is the structure of Tucker tensor object and also the list of functions we provide  for this session:
+
+-- `TuckerTensor` structure:\
+**Attributes fields** :\
+	`G::Union{Array, UndefInitializer}` : An array that contains the core tensor ``\mathcal{G}`` \
+	`U::Union{Vector, UndefInitializer}` : A vector of matrix that contains all ``U`` factors.\
+	`order::Int` : An integer to know the order of the Tucker tensor. \
+	`sizesG::Union{Tuple, Vector{Int}, UndefInitializer}` : A vector of integer corresponding to the size of each dimensions of the core ``\mathcal{G}`` and also the commun dimensions between ``\mathcal{G}`` and ``U``. \
+**Calls**: \
+	`TuckerTensor()` : Create a empty TuckerTensor. \
+	`TuckerTensor(G)` : Create a TuckerTensor with only a ``\mathcal{G}`` core (`order` and `sizeG` are also initialized). \
+	`TuckerTensor(G, U)` : Same initialization as above plus the initialization of factors ``U``.
+
+-- `copy` function:\
+To copy a `TuckerTensor` $A$ into $B$.\
+**Call** : \
+`B = copy(A)`. 
+
+-- `full` function:\
+To transform a `TuckerTensor` into a __full__ tensor ``\mathcal{X}`` as seen in the left of the above picture. \
+**Call** : \
+`X = full(A)`.
+
+-- `generate_full_zero_tensor` function:\
+To generate a full tensor fill with zero values. \
+**Call** : \
+`X = generate_full_zero_tensor(order, dims)`.
+
+-- `matricize` function:\
+To matricize a tensor ``\mathcal{X}`` along a specific dimension ``d_n`` such that ``X \in \mathbb{R}^{d_n \times d_1\ldots d_{n-1}d_{n+1}\ldots d_{m}}``. \
+**Call** : \
+`Xmat = matricize(X, n)`.
+
+-- `tensorize` function:\
+To create tensor ``\mathcal{X}`` from matrix ``X`` along a specific dimensions array such that ``\mathcal{X} \in \mathbb{R}^{d_1\times \ldots \times d_{n-1}\times r_{n} \times d_{n+1}\times \ldots \times d_{m}}``. \
+**Call** : \
+`Y = tensorize(X, newdims, perm)`.
+
+-- `tensor_orthog` function:\
+Orthogonalise each factors of the Tucker tensor ``\mathcal{A}`` into the core tensor ``\mathcal{G}``. \
+**Call** : \
+`tensor_orthog(A)`.
+
+>**Warning :** In this project we will only interest in tensor of order three!
+"""
+
+# ╔═╡ 802a9a07-7e3b-41b0-aa81-14b34c137499
+md"""
+---
+> **_Question 16 :_** \
+> Complete the code of this new function that creates a Tucker tensor `A` with specific `order`, dimension core `dimsCommonGU`, and dimension of factors `dimsColU`.
+"""
+
+# ╔═╡ 2b0682bf-1092-4cc9-a607-5db66087f58e
+md"""
+---
+#### IV.2. Basic tensor operations
+"""
+
+# ╔═╡ 4864b5d2-0f12-4880-a435-3e2fbf60f308
+md"""
+In this sub-section, we will define basic tensor operations to proceed the low-rank approximation.
+
+-- `tuckertensor_add(X,Y)` : The addition of two tensors are ``\mathcal{Z} = \mathcal{X}+\mathcal{Y}``, where ``\mathcal{X}, \mathcal{Y}``, and ``\mathcal{Z}`` are in ``\mathbb{R}^{n_1 \times n_2 \times ···\times n_d}``. 
+
+The graph represent the addition operation in Tensor Network diagram which is done for the core ``\mathcal{G}`` of each Tucker tensor ``\mathcal{X}, \mathcal{Y}``, and ``\mathcal{Z}``.
+
+---
+"""
+
+# ╔═╡ 5032697c-abe9-4bef-8435-a2c5a1f45ebf
+begin
+	img_path_TensorAdd = "fig/TensorAdd.png"
+img_TensorAdd = load(img_path_TensorAdd)
+end
+
+# ╔═╡ d6f74531-8ef8-4ec1-890e-40a0366ef78f
+md"""
+---
+
+-- `tensor_times_matrix(X, Y, n)` : The multiplication of tensor with a matrix such as ``\mathcal{Z} = \mathcal{X} \times_{n} Y`` along the commun dimension `n` of ``\mathcal{X}`` and ``Y``. \
+**Warning :** Take care of how matrix are stored in `TuckerTensor` structure and in which direction the multiplication should be done !
+
+In Tensor network diagram, we can represent the multiplication of tensor object such as a connection between their commun dimension, as represented in the figure below.
+
+---
+"""
+
+# ╔═╡ b3773a6c-416e-40a3-bec0-32e51e4671d5
+begin
+	img_path_TTM = "fig/TTM.png"
+img_TTM = load(img_path_TTM)
+end
+
+# ╔═╡ 0d1a9463-8b5f-4022-b706-3532f4fb5238
+"""
+	tensor_times_matrix(X::Array, Y::Array, dims)::Array
+
+# Inputs : 
+- `X::Array` : Left tensor operand of the operation.
+- `Y::Array` : Right matrix operand of the operation.
+- `n::Int` : The `n`th dimension of the tensor linked to the matrix `Y`.
+
+# Result :
+- The tensor `Z` such as ``Z=X*_n Y``.
+"""
+function tensor_times_matrix(X, Y, n::Int)
+    dims = size(X)
+	# Reshape into matrix
+    Xmat, perm = matricize(X,n)
+    Z = Y' * Xmat
+	# New dimensions
+    newdims = (size(Y,2), dims[setdiff(1:end, n)]...)
+	# Reshape into tensor
+    Z = tensorize(Z, newdims, perm)
+
+    return Z
+end
+
+# ╔═╡ 7fb00138-560c-4996-9c57-58db6959fea7
+begin
+###############################################################################
+# WARNING : Do not modify the current cell (or ask to your teacher before)!  #
+###############################################################################
 	
-## Tolerance we want for computation and approximation ##
-tol = 1e-14
+# Generate the structure of the Tucker tensor
+mutable struct TuckerTensor
+	"G"
+	G::Union{Array, UndefInitializer}
+	"U"
+	U::Union{Vector, UndefInitializer}
+	"order"
+    order::Int
+	"sizesG"
+	sizesG::Union{Tuple, Vector{Int}, UndefInitializer}
+
+	"Inner constructor"
+	TuckerTensor() = 
+	begin
+		new(undef, undef, -1, undef)
+	end
+	TuckerTensor(G::Union{Array, UndefInitializer}) =
+	begin
+		new(G, undef, length(size(G)), size(G))
+	end
+	TuckerTensor(G::Union{Array, UndefInitializer}, U) =
+	begin
+		if length(size(G)) != length(U)
+			throw(error("Number of matrix $(length(U)) and order of core tensor $(length(size(G))) mismatch !"))
+		end
+		new(G, U, length(size(G)), size(G))
+	end
+end
+
+"""
+	copy(A::TuckerTensor)::TuckerTensor
+
+Copy the `A` `TuckerTensor` object.
+"""
+function Base.copy(A::TuckerTensor)::TuckerTensor
+	B = TuckerTensor()
+	try B.G = copy(A.G) catch; nothing end
+	try B.U = copy(A.U) catch; nothing end
+	try B.order = copy(A.order) catch; nothing end
+	try B.sizesG = deepcopy(A.sizesG) catch; nothing end
+	return B
+end
+
+"""
+	full(A::TuckerTensor)::Array
+
+Transform a `TuckerTensor` object into a full dense `Tensor`.
+"""
+function full(X::TuckerTensor)
+    T = X.G
+    for i in 1:X.order
+        T = tensor_times_matrix(T, X.U[i], i) # See code below
+    end
+    return T
+end
+
+"""
+	generate_full_zero_tensor(order::Int, dims::Int)
+
+# Inputs : 
+- `order::Int` : Number of dimension the tensor have. 
+- `dims::Int` : Size of dimensions of the tensor. Same value for all dimension.
+
+# Result :
+- A tensor with all zeros values inside.
+"""
+function generate_full_zero_tensor(order::Int, dims::Int)
+	return zero(Array{Float64, order}(undef, Tuple(repeat([dims],order))))
+end
+
+
+"""
+	matricize(X, n::Int)
+
+# Inputs : 
+- `X` : The tensor we want to transform into matrix. 
+- `n::Int` : The index dimension we want to put in row of matrix and the rest at the column.
+
+# Result :
+- `Xmat` : The matrix of ``\\mathcal{X}`` such as ``X \\in \\mathbb{R}^{n\\times d_1\\ldotsd_o}``
+- `perm` : The vector of index permutation, need it to tensorize back the matrix ``X``.
+"""
+function matricize(X, n::Int)
+	dims = size(X)
+	# Move the dimension n in front of the tensor
+    perm = (n, setdiff(1:ndims(X), n)...)
+    Xp = permutedims(X, perm)
+	# Reshape into matrix
+    Xmat = reshape(Xp, dims[n], :)
+	return Xmat, perm
+end
+
+"""
+	tensorize(X, newdims, perm)
+
+# Inputs : 
+- `X` : The tensor we want to transform into matrix. 
+- `newdims` : The index dimension we want to put in row of matrix and the rest at the column.
+- `perm` : The vector/tuple of index permutation provide by the matricization
+
+# Result :
+- `Y` : The tensor of ``X`` with dimensions order as the same as before the matricize.
+"""
+function tensorize(X, newdims, perm)
+	Y = reshape(X, newdims)
+	# Return Z with inverse permutation
+	Y = permutedims(Y, invperm(perm))
+    return Y 
+end
+
+"""
+	tensor_orthog(A::TuckerTensor)::TuckerTensor
+
+# Inputs :
+- `A::TuckerTensor` : The target Tucker tensor we want to orthogonalise.
+
+# Results :
+- `A::TuckerTensor` : Return the Tucker tensor with all matrices orthogonalised into the core tensor `G`.
+"""
+function tensor_orthog(A::TuckerTensor)::TuckerTensor
+	coreG = A.G
+	U_list = Vector(undef, A.order)
+	for k in 1:A.order
+		Q, R = qr(A.U[k])
+		coreG = tensor_times_matrix(coreG, R, k)
+		U_list[k] = Q
+	end
+	A.G = coreG
+	A.U = U_list
+	return A
+end
+
 nothing
 end
 
-# ╔═╡ 8d0ce6f3-b758-4720-b400-2d49d2659ed9
-md"""
-## I. Introduction
+# ╔═╡ d661a9e0-d411-41e5-b79a-b319f7210f0f
+begin 
 """
-
-# ╔═╡ 94e07711-6648-40ec-8ec4-d3b24cfd04d1
-md"""
-In the domain of *linear algebra*, we focus on matrix computations to study other scientific fields such as *data analysis*, *artificial intelligence*, *computational fluid dynamics*, and *structural computations*. These fields increasingly require handling large datasets that may be impractical for computation or storage.
-
-In *scientific computing sessions*, we have explored methods to reduce the dimensionality of matrices using **eigenpairs**, which are useful for **Principal Component Analysis (PCA)**. Additionally, matrices can be decomposed into smaller matrices using **Singular Value Decomposition (SVD)**, leveraging singular value pairs .
-
->**Definition :** Singular Values Decomposition (SVD)
->``$A = U \Sigma V$``
->1. ``A \in \mathbb{R}^{m\times n}`` : orignal matrix (with ``m \geq n``).
->2. ``U\in \mathbb{R}^{m\times m}`` : with columns corresponding to left-**singular vectors** of ``A``.
->3. ``\Sigma \in \mathbb{R}^{m\times n}`` : with ``d=min(m,n)`` **singular values (``\sigma``)** along the diagonal in decreasing order (convention).
->4. ``V\in \mathbb{R}^{n \times n}`` : with columns corresponding to right-**singular vectors** of ``A``.
-
-[^1] : *Matrix computations*, Golub, Gene H and Van Loan, Charles F
-"""
-
-# ╔═╡ c3347b93-1d44-4bc1-a088-c52b8846de8d
-md"""
-
-## Project: Accelerating Matrix/Tensor Decomposition with Randomized Linear Algebra (RLA)
-
-## Project Objective
-Accelerate matrix/tensor decomposition methods using **Randomized Linear Algebra (RLA)** techniques.
-
-#### Project Format
-- **Pluto notebook** with cells to complete.
-- Tasks may include:
-  - Theoretical questions to answer,
-  - Code to develop,
-  - Performance analyses to conduct.
-- **Collaborative work**: Must be done in pairs (same TD group).
-
-#### Project Schedule
-1. **Initial Session**
-   - Presentation of objectives and format.
-   - Begin answering questions and developing algorithms.
-
-2. **One Month to Complete**
-   - Work on the notebook provided during the first session.
-
-3. **First Submission**
-   - Submit the completed notebook before the second session.
-
-4. **Second Session**
-   - New notebook focusing on an **application (tensor object)** using algorithms from the first notebook.
-
-5. **Final Submission**
-   - Submit the completed final notebook.
-
-**Submission deadlines** will be announced on **Moodle**.
-
-"""
-
-# ╔═╡ 44808382-6188-449a-a6d1-1138f8dbe8b1
-md"""
-
-#### I.1 Singular Values
-"""
-
-# ╔═╡ 4c15b971-5cc0-4561-a246-ebc0b4bd90da
-md"""
----
-> **_Question 1 :_** \
-> Give the link between the eigenvalues of ``A^T A`` and ``\Sigma`` ?
-"""
-
-# ╔═╡ 169daa90-2798-4f2a-b371-a7a313374966
-md"""
->**Answer 1 :**
->
->``A = U \Sigma V``
-> et ``U^T U = I_n`` \
-> donc `` A^T A = V^T \Sigma ^T U^T U \Sigma V`` \
-> Or   ``U^TU = I``
-> et `` \Sigma ^T = \Sigma`` car elle est diagonale \
-> Donc : `` A^T A = V^T \Sigma ^2 V`` \
-> Conclusion : La relation entre les eigenvalues de ``A^T A`` et `` \Sigma`` est juste une question que les termes sont mis au carré.
----
-"""
-
-# ╔═╡ edef97e8-b44f-4b3e-be58-680b80f6c832
-md"""
-
-#### I.2 QR factorization
-"""
-
-# ╔═╡ 4b68cae1-d3b2-4051-aaae-12ba10c9d274
-md"""
----
-> **_Question 2 :_  Test the QR algo from Julia** \
----
-"""
-
-# ╔═╡ 00fbe68c-1ff6-4d4d-a372-4e93e6ad05d0
-### Answer ###
-begin
-	"""
-		Test the QR algo from Julia
-	
-	# Inputs
-	- `A::Array` : The matrix we use for QR computation.
-	- `tol::Float64` : The tolerance we want to reach.
-
-	# Result
-	- None
-	"""
-	function cost_std_qr(A::Array, tol::Float64)
-		# Do the qr from julia
-		Q,R = qr(A)
-		# Check if the approx is correct
-		norm(Q*R - A, 2) < tol
-	end
-end
-
-# ╔═╡ 4350ccce-83bd-4fe7-be73-7ffb8d37bbd2
-begin
-	# To test the function
-	cost_std_qr(A_small, tol)
-end
-
-# ╔═╡ b84f1a43-3cb3-41c7-b302-3b61a68885f3
-md"""
----
-"""
-
-# ╔═╡ 347fb7c9-e96e-4046-a237-5a1628ca5b4f
-md"""
-> **_Question 3 :_** \
-> The complexity of the `QR` algorithm above for a matrix $A\in \mathbb{R}^{m\times n}$ ($m >> n$) should be (at $k\in \mathbb{N}$ constant):
-> 1) ``O(mn^2 + mn)``
-> 2) ``O(mn^2)``
-> 3) ``O(mn)``
-> 4) Your estimation
-> By referring to the description of factorisation using Householder reflections of CTD4, explain your choice (write the computations)
-"""
-
-# ╔═╡ fb894a5b-e0a0-42e7-aa03-bcfa8d889413
-md"""
-> **Answer 3 :** \
-> Algorithme de QR pour $A\in M_{m,n}(\mathbb{R})$ (méthode de reflexion de householder): \
-```
-for k = 1,n do
-	[v, β] = house(A[k:m,k])
-	A(k:m,k+1:n) = (Iₘ₋ₖ₊₁ - βvvᵀ)A(k:m;k+1:n)
-	A(k,k) = -sign(A(k,k))||A(k:m,k)||
-	if k≤m then
-		A(k+1:m,k) = v(2:m-k+1)
-	end if
-end for
-```
-> D'après le CTD5, la partie la plus chère en complexité est : \
-> $A(k:m,k+1:n) = (I_{m-k+1} - \beta vv^T)A(k:m;k+1:n)$ \
-> \
-> Sachant que : $v \in \mathbb{R}^{m - k + 1}$\
-> $\beta \in \mathbb{R}$\
-> $A(k:m;k+1:n) \in \mathbb{R}^{(m-k+1) \times (n-k)}$\
-> \
-> $(I_{m-k+1} - \beta vv^T)A(k:m;k+1:n) = A(k:m;k+1:n) - \beta vv^TA(k:m;k+1:n)$
-> Concentrons nous sur : 
-> $\beta vv^TA(k:m;k+1:n)$ \
-> Nombre d'opération de $v^TA(k:m;k+1:n) (= w)$ : $(m-k+1)(n-k)$ \
-> Nombre d'opération de $\beta v w$ : $(m-k+1)(n-k)$ \
-> Nombre totale d'opérations pour une iteration: $4 \times (m-k+1)(n-k)$\
-> Donc en prenant en compte la boucle : $4 \sum_{k=1}^{n} (m-k+1)(n-k)$ opérations\
-> Or $4 \sum_{k=1}^{n} (m-k+1)(n-k) \approx 4 \times (n^3/3 + (m-n)n(n-1)/2)$\
-> \
-> Donc la réponse est : 2) ``O(mn^2)``
----
-"""
-
-# ╔═╡ d7c016b8-adcd-4852-96ff-b899c06134b3
-md"""
-> **_Question 4 :_** \
-> What should be the memory cost of ``A\in \mathbb{R}^{m\times n}`` on the `QR` algorithm if we preserve `A` (not in place algorithm). \
-"""
-
-# ╔═╡ 8961d5b7-3fe7-4801-99bb-1571bd7fe31f
-md"""
-> **Answer 4 :** \
-> Si on stocke de la même façon, mais en gardant A, alors on obtiens une matrice de même taille que A et toujours le vecteur des ``\beta`` \
-> Donc : $\Re ^{m \times n}$ et $\Re ^{n}$ \
-> Donc : n × (m+1) valeurs
----
-"""
-
-# ╔═╡ 35a9f521-9e13-411c-9f59-d9c5ffc12d29
-md"""
-## II. Benefit of using RLA (Randomized Linear Algebra)
-"""
-
-# ╔═╡ ff21dcca-7aec-4cd7-93e2-1be536a38658
-begin
-img_path = "fig/Randomized_scheme.png"
-img = load(img_path)
-end
-
-# ╔═╡ 4107af5d-d60b-433c-9f0f-748e0ec80ef8
-md"""
-- Taking a Gaussian random matrix ``\Omega \in \mathbb{R}^{n\times l}`` (``l < n``), we have ``B \in \mathbb{R}^{m\times l}`` such as ``B = A \Omega`` (The above picture represent this computation).
-- We will use ``B`` instead of ``A`` to computed some informations about ``A``  expecting some similar results.
-
-- We can list some key advantages of using **Randomized Linear Algebra (RLA)**:
-
-1. **Reducing computational complexity**
-   - *Example*: Using matrix `B` for computation requires approximately `O(ml)` flops instead of `O(mn)` flops (as shown in the figure above).
-
-2. **Improving numerical stability**
-   - *Example*: Certain cases in low-rank approximation benefit from RLA’s stability.
-
-3. **Exploiting modern hardware architectures**
-   - *Example*: In the coming years at N7, in parallel computing lectures, we will see the benefits of RLA with GPU acceleration.
-"""
-
-# ╔═╡ 2adeaa41-37db-4200-88a9-7d7e0a086939
-md"""
-### II.1. Random matrices generation
-"""
-
-# ╔═╡ 5969313a-3e2b-45ca-8d94-1ea4e326ed86
-md"""
-##### Symmetric construction 
-First we will define a function to check if the matrix is Symmetric ($A = {A^T}$). 
-
----
-"""
-
-# ╔═╡ 999ba2fd-2bcf-4257-83b8-119acf604e24
-md"""
-> **_Question 5 :_** Check the symmetry of a matrix (code)
-"""
-
-# ╔═╡ d7fcc295-afe2-42de-8e23-3eaa24377a0a
-### Answer ###
-begin
-    """
-        check_symmetric_sol(A::Union{Array,Symmetric})::Bool
-
-    # Input :
-    - `A::Union{Array,Symmetric}` : The input matrix to verify if it is symmetric.
-
-    # Result :
-    - Boolean
-    """
-    function check_symmetric_sol(A::Union{Array,Symmetric})::Bool
-        m, n = size(A)
-        
-        # Check is the matrix is square
-        if m!=n
-			return false
-		end
-        
-        check = true
-        i = 1
-        while i < m-1
-            j = i+1 
-            while j < m
-                if A[j,i+1] != A[i+1,j]
-                    return false
-                end
-                j+=1
-            end
-            i+=1
-        end
-        return check
-    end
-end
-
-# ╔═╡ 6d231b8c-0ea8-4820-9319-f10ca87ae9e4
-begin
-	# To test the function
-	# Case of fail
-	println(check_symmetric_sol(Usual))
-	
-	# Case of success 
-	# TODO : Make the matrix Herm symmetric
-	for i in 2:size(Herm)[1]
-		for j in i+1:size(Herm)[1]
-			Herm[i,j] = Herm[j,i]
-		end
-	end
-	println(check_symmetric_sol(Herm))
-	
-	nothing
-end
-
-# ╔═╡ 95b8fb57-7be9-4671-a8db-e189d20efcb6
-md"""
----
-##### Random matrices definition and how to generate them
-
----
-"""
-
-# ╔═╡ 7fb26e82-736f-4f26-922a-c40133644098
-md"""
-In this section, we will explore how to generate random matrices and verify their efficiency for future applications.
-
-##### Key Properties of Random Matrices
-- By definition, a **random matrix** ``\Omega \in \mathbb{R}^{n\times l}`` contains **random values**, meaning its entries may differ between executions.
-- Despite the randomness of ``\Omega``, we must ensure certain properties to preserves structure of ``A`` into ``B`` and achieve reliable results (see **Question 7** for details).
-
-> Properties we want (for a reasonnable tolerance ``\epsilon > 0``) :
-> 1. **Subspace preservation**  (*subspace embedding*) : 
-> ``$\forall x, (1−\epsilon)||x^T A||^{2}_{2} \leq ||x^T B||^{2}_{2} \leq (1+\epsilon)||x^T A||^{2}_{2}$`` 
-> 2. **Spectral properties** :
-> ``$ (1−\epsilon) A A^T \preceq  B B^T \preceq (1+\epsilon) A A^T$``
-> 3. **Low-rank structure preservation** (use for Low-rank approximation) :
-> If ``A`` is low-rank, then:
-> ``$||A−B_k|| \simeq ||A−A_k||$``
-> where: ``A_{k}`` = best rank-k approximation; and ``B_{k}`` = rank-k approximation from the sketch.
-
-Others properties exist (e.g., *leverage score preservation*) but are not always revelant for our applications;  hence we can omit them.
-"""
-
-# ╔═╡ 72341cab-1f3b-49c1-b372-ffe3bf257549
-md"""
-To easily ensure the properties mentioned above, we can generate random matrices using the following approaches:
-1. **Random projection** : Gaussian matrices ``\mathcal{N}(0,1)`` --(State of the Art)-- or Subsampled Randomized Hadamard Transform (SRHT).
-2. Random row sampling
-3. Composition of `1.` and `2.`
-4. GOE/GUE (Gaussian Unitary Ensemble): complex Hermitian or real Symmetric (Warning : Not ensure good compression rank).
-5. With respect of **Haar measurement**[^3][^3bis].
-
->**Definition :** Haar measurement \
-> Measurement (or infinitesimal volume) in the domain (here $\mathbb{R}$) : \
-> a random matrix $\Omega$ is *Haar-distributed* if:\
-> multiplying it by any fixed orthogonal matrix $A$ doesn’t change its distribution. \
-> $Sp(A)=Sp(\Omega A)$ and $Sp(A)=Sp(A\Omega)$
-
-
-[^3] Website definition : [here](https://en.wikipedia.org/wiki/Haar_measure) \
-[^3bis] Paper related : [here](https://arxiv.org/pdf/math-ph/0609050)
-"""
-
-# ╔═╡ 75ee77ca-1f40-427a-b483-ec68c68ea491
-md"""
----
-
-> **_Question 6 :_** \
-> Which information the above Haar definition gives to use random matrices ?
-"""
-
-# ╔═╡ 82651b4c-5f5f-4e83-8738-6144e533c9a5
-md"""
-> **Answer 6:** \
-> La Mesure de Haar n'est pas une méthode de génération de matrice random, mais un critère de vérification. On utilise, une des methodes (1 à 4) puis on vérifie que la matrice obtenu est bien random.
-
----
-"""
-
-# ╔═╡ 1a1ffc32-a583-4ab9-94c1-7546b1c60733
-md"""
-#### II.2. Example of a random matrix : Gaussian and Haar ensembles.
-"""
-
-# ╔═╡ 5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
-md"""
-Let take a gaussian matrix $N$ such as : ``N_{ij} \sim \mathcal{N}(0, 1)``. \
-The distribution tend to be very well conditioned and Gaussian are rotationally symmetric which means that can be used as random matrix. 
-
-We can also generate random matrix from `QR` decomposition from an random matrix ``A`` with respect to Haar measurement, by extracting the orthogonal part ``Q`` and ensure is uniqueness by using the following principle: 
-> If ``A = QR`` and ``L = diag(e^{i\theta_1},\ldots,e^{i\theta_N})``, where ``\theta_1 \leq \ldots \leq \theta_n`` are eigenvalues of ``A`` and ``L`` unitary diagonal matrice. \
-> We can generate ``Q' = QL`` and ``R'=L^{-1}R`` and keeping unitary and upper-triangular properties, respectively, to obtain ``A=QR=Q'R'``. \
-> From this, we can have unicity by extracting ``L`` from ``R'`` (now ``R'`` have **all diagonal  elements are always real and stricly positive** :
-> ``R'=L^{-1}R`` to obtain ``Q'=QL``. \
-> Example : ``L = diag(r_{ii}/|r_{ii}|)``.
-"""
-
-# ╔═╡ 3702b36e-fd82-4ed9-a659-5704e885ff85
-md"""
----
-
-> **_Question 7 :_** \
-> Find the error on the code of the generation of the random matrix below and correct it. \
-"""
-
-# ╔═╡ 4683b60e-9190-49ea-b0e4-641f02198dab
-begin
-
-# Generate your random square matrix
-"""
-	own_random(m::Int, n::Int)::Array
-
-# Fields :
-- `m::Int` : The number of rows
-- `n::Int` : The number of columns
-"""
-function own_random(m::Int, n::Int)::Array
-	A = rand(m, n)
-	
-	# Generate a orthogonal factor of A
-	Q, R = qr(A)
-
-	return  Q * Diagonal(sign.(diag(R)))
-	
-end
-end
-
-# ╔═╡ 29d2aae4-2aa4-4966-b970-816c6d04025c
-begin
-	# To test the function
-	
-	# Run many times the cell (Shift + Enter) to ensure the matrix is random.
-	Beta = own_random(large_rows,large_cols)
-	nothing
-end
-
-# ╔═╡ 8ce176ce-7c48-4f6d-a36f-eaa9341d179f
-# a73d3ba3-7eca-476d-9d95-f8630197729a
-md"""
----
-
-> **_Question 8 :_** \
-> State the exact number of logical operations in the algorithm above (the corrected one if you correct it, else the given one).
-"""
-
-# ╔═╡ 071d85f7-b062-45cf-8d18-dace01f7170c
-md"""
-> **Answer 8 :** \
-> On a multipié notre matrice Q par L pour obtenir Q'. L étend de taille R, min(n,m)².
->On obtient un nombre d'opération logique de : (m*n) * (m*n) donc ``m^{2} * n^{2}``, et si on >suppose que m = n. On a un nombre d'opération logique de ``n^{4}`` ou ``m^{4}``
-
----
-"""
-
-# ╔═╡ adca2886-9f4b-4506-8e69-c3faa56a098b
-md"""
-#### II.3. How verify that the generation of a random matrix is correct
-"""
-
-# ╔═╡ 041920d3-d3a8-4e34-9c70-3b76ffc068f6
-md"""
-
-###### 1. Check if the **density of eigenvalue** is constant :
-An easy way to verify the constant of **density of eigenvalue** (red cross in plot) is to plot them and compare it with a **theoretical density** (black line in plot).
-Theoretical density can be extract from GUE and should be overlapped by the **density of eigenvalue** we extract.
-
-Since Haar measure is the analogue of a uniform distribution, each set of eigenvalues must have the same weight, therefore the normalized eigenvalue
-density is ``\rho(\theta) = 1/2\pi``.
-
-How to compute the density of eigenvalue from our matrix :
-> 1. Take all **eigenvalues** ``\lambda`` \[Remember : ``det(A−λI)=0``\] (We can use the `eigen` function from Julia to get the ``\lambda``.)
-> 2. Generate the range and width of ``\lambda`` (or ``\theta`` if in complex case where we can be because the matrix is random, where ``\theta = angle(\lambda)``). 
-> 3. Counts the number of time we have the ``i``th ``\theta``. (Histogram do that).
-> 4. Hence we can express the formula of the density such as :
-> ``$\rho_n(\theta)=\frac{1}{n}\sum_{i=1}^{n} \delta(\theta - \theta_i)$``
-> where ``\delta(x) = 0`` if ``x \neq 0`` (infinity otherwise, see [probability measurement](https://en.wikipedia.org/wiki/Dirac_delta_function) for more information on it).
-> Line 2. 3. and 4. can be done by the `density!` function of Julia (cf [documentation](https://docs.juliaplots.org/dev/generated/statsplots/)) 
-
-To ensure a smooth plot we will generate `nb_exect` times the ``\Omega`` matrix and stores the density result of each into a huge vector `theta_all`.
-
-To check the function of `plot_eig_sol`, we will test it on two random matrices arise from :
-1. `bad_random(m::Int, n::Int)` : The same function as Question `7` without your modification.
-2. `own_random(m::Int, n::Int)` : The function on Question `7`.
-"""
-
-# ╔═╡ 39aeaf1f-20e2-4a8c-9750-49ff1fbfe54f
-md"""
----
-
-> **_Question 9 :_** \
-> Plot the eigenvalue density of the random matrix extract to check if the matrix is proprely random.
-"""
-
-# ╔═╡ d21d5cd7-8f15-4557-8596-496294fe0128
-begin
-"""
-	plot_eig_sol(f::Function, rows::Int, cols::Int, nb_exec::Int)
-
-Plot density of eigenvalue of a random matrix `rowsxcols` generate `nb_exec` times  and compare it with the theoritical density prediction.
-If the result is constant (except for extrema theta angles consider at ``<-3`` and ``>3`` ) the randomness is successfully generate.
-
-# Inputs :
-- `f::Function` : The function of random generation of the matrix omega.
-- `rows::Int` : Number of rows of the matrix.
-- `cols::Int` : Number of columns of the matrix.
-- `nb_exec::Int` : Number of times we generate a space distribution.
+	create_Tucker_tensor(order::Int, dimsCommonGU::Int, dimsCol::Int=5)::TuckerTensor
+
+# Inputs : 
+- `order::Int` : Number of dimension the core tensor `G` have. 
+- `dimsCommonGU::Int` : Size of dimensions of the core tensor `G`. Same value for all dimension. Also the 
+- `dimsColU::Int` : Column sizes of each matrix of the Tucker tensor (default to `5`). Same value for all dimension.
 
 # Result :
-- The graph generate by the function.	
+- A `TuckerTensor` with all matrices of sizes ``dimsCommonGU \\times dimsColU`` and with `order` core of ``order * dimsCommonGU``.
 """
-function plot_eig_sol(f::Function, rows::Int, cols::Int, nb_exec::Int)
-
-	theta_all = []
-
-    for i in 1:nb_exec
-		omega = f(rows,cols)
-		lambda = eigen(omega)
-        # Compute eigenvalues and their angles (theta)
-    	theta = angle.(lambda.values)
-		
-		# Store the current theta phase of omega
-        append!(theta_all, theta)
-    end
-	ep = mean((theta_all .- mean(theta_all)).^2)
-
-	println(ep)	
-	# Range of theta
-	lambda_range = range(minimum(theta_all),maximum(theta_all),cols)
+function create_Tucker_tensor(order::Int, dimsCommonGU::Int, dimsColU::Int=5)::TuckerTensor
+	# Create the core tensor G
+	G = generate_full_zero_tensor(order, dimsCommonGU)
+	# Create the vector of factors
+	U_list = Vector(undef, order)
 	
-    # Theoretical Density which is rho(theta) = 1/2pi (SAMPLE)
-    uniform_density = (1 / (2 * pi))
-    
-	# Plot the SAMPLE
-    plot(lambda_range, fill(uniform_density, length(lambda_range)), label="Theoretical Density", lw=2, color=:black, xlim=(-pi,pi), ylim=(0,0.20))
-
-	# Plot your density
-	density!(theta_all, marker=:circle)
-
-	# The legend
-    xlabel!(L"\theta")
-    ylabel!(L"\rho(\theta)")
-    title!("Eigenvalue density")
+	for i in 1:order
+		# Initialise each factors with random matrix
+		U_list[i] = randn(dimsCommonGU, dimsColU)
+	end
+	return TuckerTensor(G, U_list)
 end
 end
 
-# ╔═╡ 4f8a9ea9-b558-4715-baae-befc1d3435e7
+# ╔═╡ d75bccee-62de-4efa-905c-25385ba0cdc5
 begin
-	# To test the function
-	# Example to test with a random unitary matrix (Haar distributed)
-	bad_plot = plot_eig_sol(bad_random, small_rows, small_cols, 100)  ##todo
+	# Test the function and show the result
+	create_Tucker_tensor(3, 7)
+end
+
+# ╔═╡ 2b489d97-223d-4590-b170-2e29d0a53e31
+begin
+### Code 5 : ###
+
+"""
+	tuckertensor_add(X::TuckerTensor, Y::TuckerTensor)::TuckerTensor
 	
-	# Make your symmetric matrice
-	good_plot = plot_eig_sol(own_random, small_rows, small_cols, 100) ##todo
-
-	nothing
-end
-
-# ╔═╡ dfa31f14-eae0-49a3-9815-610526b0e525
-begin
-	# To print the failure case and the good case
-	md"$bad_plot  $good_plot"
-end
-
-# ╔═╡ 009baa44-2b76-4d08-b22b-c08b65fbbeb3
-md"""
-###### 2. Check if the **spacing distribution** is static.
-Another way to verify is by ploting the **spacing distribution** from our matrix (red cross in plot) and see an overlap from **theoretical distribution** (black line in plot) with margin of $2\%$.
-
-To ensure a smooth plot we will generate `nb_exect` times the ``\Omega`` matrix and stores the spacing distribution result of each into a huge vector `s_all`.
-
-> General expression of Spacing distribution
-> ``$P(s)=(\frac{N}{2\pi} \sum^{N-1}_{i=1} s_i)$``
-> where ``s_i = \theta_{i+1} - \theta_{i}``
-
-Similarly, for a random Gaussian matrix (GUE) the spacing distribution can be easely express by the **wigner sumrise** formula.
-
-> **Wigner sumrise**$^4$: (for GUE) \
-> ``$P(s)=\frac{32}{\pi^2} s^2 exp(−\frac{4}{\pi}s^2)$``
-> where ``s = \theta_{i+1} - \theta_{i}``
-
-[^4] Website definition : [here](https://en.wikipedia.org/wiki/Wigner_surmise)
-"""
-
-# ╔═╡ 16140f1f-b6ac-4649-9c6c-2868167fa449
-md"""
----
-
-> **_Question 10 :_** \
-> Plot the normalized nearest-neighbor eigenvalue spacing distribution
-"""
-
-# ╔═╡ b9365f21-84ee-4c55-a030-8e5d8ad521e7
-begin
-"""
-    plot_space_dist(f::Function, rows::Int, cols::Int, nb_exec::Int)
-
-Plot the normalized nearest-neighbor eigenvalue spacing distribution
-of a random matrix `rowsxcols` generate `nb_exec` times  and compare it with the CUE prediction.
-
-# Inputs :
-- `f::Function` : The function of random generation of the matrix omega.
-- `rows::Int` : Number of rows of the matrix.
-- `cols::Int` : Number of columns of the matrix.
-- `nb_exec::Int` : Number of times we generate a space distribution.
+# Inputs : 
+- `X::TuckerTensor` : Left Tucker tensor operand of the operation.
+- `Y::TuckerTensor` : Right Tucker tensor operand of the operation.
 
 # Result :
-- The graph generate by the function.	
+- The Tucker tensor `Z` such as `Z=X+Y`.
 """
-function plot_space_dist(f::Function, rows::Int, cols::Int, nb_exec::Int)
-	
-   s_all = []
-
-    for i in 1:nb_exec
-        U = f(rows,cols) 	#ok
-
-		# Compute eigenvalues
-        theta = angle.(eigvals(U))	#ok
-		# print("taille de theta : ")
-		# println(size(theta))
-		
-		# Sort theta
-        sort!(theta)		#ok
-
-		
-        # Nearest-neighbor spacings (difference)
-  #       s = [theta[end] - theta[end-1]]
-		# print("Taille de ancien s : ")
-		# println(sizeof(s))
-		# print(theta[end] - theta[end-1])
-		s = [theta[i+1] - theta[i] for i=1:length(theta)-1]
-		# print("Taille de ancien s : ")
-		# println(size(s))
-		push!(s, 2π - (theta[end] - theta[1]))
-		
-        # Apply correct scaling: N / (2π)
-        s = (length(theta)/(2*pi)) * s 		
-
-		# print("Taille de s : ")
-		# println(size(s))
-		# println(mean(s))
-
-		# Update the list s_all
-        append!(s_all, s)
-    end
-
-	# print("taille s_all : ")
-	# println(sizeof(s_all))
-	# println(s_all)
-	
-	h = scatterhist(s_all,
-        bins=60,
-        normalize=:pdf,
-        alpha=0.5,
-        color=:red,
-        label="Numerical",
-        xlabel="s",
-        ylabel="P(s)",
-        xlim=(0, 3.5),
-        title="CUE Eigenvalue Spacing Distribution"
-    )
-
-	
-    # CUE Wigner surmise (for GUE)
-	s_vals = range(0, stop=3.5, length=400)
-	p_cue = [(32 / (pi^2))*(s_vals[i]^2)*exp(-(4/pi) * s_vals[i]^2) for i=1:length(s_vals)]
-
-    plot!(s_vals, p_cue,
-        lw=3,
-        color=:black,
-        label="COE theory"
-    )
-
-    return h
+function tuckertensor_add(X::TuckerTensor, Y::TuckerTensor)::TuckerTensor
+	Z = TuckerTensor()
+	# Add values in the G core
+	Z.G  = X.G + Y.G
+	# Copy factors from X
+	Z.U = copy(X.U)
+	# Add values with Y
+	Z.U .= Z.U + Y.U
+	# Update the structure
+	Z.order = length(size(Z.G))
+	Z.sizesG = size(Z.G)
+	return Z
 end
 end
 
-# ╔═╡ ad6a05b1-6964-4851-ac81-8d640054853a
+# ╔═╡ 27577f5d-28e2-4c4a-b581-629cbbfd6446
 begin
-	# To test the function
-	bad_dist = plot_space_dist(bad_random, 100, 100, 500)
+# Function to verify all previous operation works. 
+function verify_all_operation()
+	order = 3
+	sizeG = 15
+	sizesU = 15
 
-	good_dist = plot_space_dist(own_random, 100, 100, 500)
+	# Check the generation of tensor
+	X = create_Tucker_tensor(order,sizeG,sizesU)
+	Y = create_Tucker_tensor(order,sizeG,sizesU)
+	Z = TuckerTensor()
+
+	# Check the full method
+	fullX = full(X)
 	
-	nothing
+	# Check the addition
+	X.G = 3*ones(sizeG,sizeG,sizeG)
+	Y.G = 5*ones(sizesU,sizesU,sizesU)
+	Z = tuckertensor_add(X, Y)
+
+	# Check the multiplication
+	Z.G = tensor_times_matrix(X.G, randn(sizeG,sizeG), 1)
+end
+verify_all_operation()
+nothing
 end
 
-# ╔═╡ 376254b1-1308-4832-a77d-38b02d16cec6
-begin
-	# To print the failure case and the good case
-	md"$bad_dist $good_dist"
-end
-
-# ╔═╡ 0c67c1b4-7021-4e8c-b8b5-efad55b73de6
+# ╔═╡ 7d926fd5-058e-4916-bfef-ce0f06c372cd
 md"""
+---
+#### IV.3. Tensor low-rank approximations
+"""
+
+# ╔═╡ b982a1c7-3b44-46c4-8356-bc7486e9d943
+md"""
+The objective is now to transform a full tensor ``\mathcal{X}`` into a Tucker tensor composed by a tensor core ``\mathcal{G}``, and associated factors  ``U``.
+
+The `tensor_lra` function below performs this transformation (also call `HOSVD` in literature) which can be describe with the following steps :
+
+tensor_lra(X,tol) :
+1. Take the adequat tolerance ``\epsilon_l = tol / \sqrt{order}`` (be relative to the global tolerance and the order of the tensor).
+	
+2. For every dimension of ``\mathcal{X}`` : 
+   - Reshape the core tensor along the current dimension, e.g. ``\mathcal{X} \in \mathbb{R}^{n_1 \times n_2 \times n_3} \rightarrow X \in \mathbb{R}^{n_1 \times n_2 n_3}``.
+   - Apply a low-rank method on matrix ``X``.
+   - Multiply by ``U`` (orthogonal matrix) along the ith dimension with the tensor ``\mathcal{X}``, e.g. ``\mathcal{X} = \mathcal{X} \times_i U``  
+   - Store ``U`` in the vector of factors.
+
+3. Generate the Tucker tensor with the tensor ``\mathcal{X}`` and the vector of factors ``U``.
+
 ---
 """
 
-# ╔═╡ 3fc18c26-3171-4950-9385-dc4058a91f82
+# ╔═╡ db9c30ac-5d37-4a0c-9182-43f037f33f4d
 md"""
-#### II.4. Stewart method : LU factorization idea (Stewart, 1980)[^4]
-
-[^4] *The Efficient Generation of Random Orthogonal Matrices with an Application to Condition Estimators*, G. W. Stewart, 1980.
+We provide the following execution graph of the `tensor_lra` function at each steps.
 """
 
-# ╔═╡ 7c1cbb4b-7bfb-43d0-93c5-ba42445b1dc3
-md"""
-This part reveal the connection between methods seen in courses and RLA and show how to extract a more efficient random matrix with the following idea:
-> Track how the LU factorization behaves as pivots are chosen, and stop when the remaining part of the matrix is numerically insignificant.
+# ╔═╡ 9f4c660c-bbbd-4171-b496-e68e7e243d20
+begin
+	img_path_HOSVD = "fig/HOSVD.png"
+img_HOSVD = load(img_path_HOSVD)
+end
 
-The idea is to determine the rank of ``A`` with a factorization form of it.
-
-Main steps of the idee :
-1. LU factorization with pivoting : 
-``$PA = LU$`` (``P`` permutation matrix, ``L`` unit lower triangular matrix, ``U`` upper triangular matrix)
-2. Ordering diagonal entries of ``U`` :
-``$|u_{11}| \geq |u_{22}| \geq \ldots \geq |u_{nn}| $``
-3. Estimate the rank ``r`` depending on ``u``.
-"""
-
-# ╔═╡ 1f505d72-9af3-4eec-bdce-1f1f79ac53f2
-md"""
-## III. Low-rank Approximation
-"""
-
-# ╔═╡ 1a2a4832-3431-4818-9c85-e8863d4c6f2d
-md"""
->**Definition :** Low-rank approximation (LRA)
->
->**Low-rank approximation (LRA)** is the method to decompose a matrix ``X ∈ \mathbb{R}^{m\times n}`` into smaller factors ``U ∈ \mathbb{R}^{m\times r}``, ``V ∈ \mathbb{R}^{n\times r}`` with the smallest numerical rank ``r`` possible.
-
-This definition can be extended to tensors object (see next session) and tend to compress the object we treat without loosing information from the original object to reduce memory storage and also become more efficient in terms of performance.
-"""
-
-# ╔═╡ e3044dca-1ae1-414a-b343-3d925fcf83de
-md"""
-LRA are divided in two categories :
-1. *iterative methods* : Solve the LRA problem with a sequence of approximations, each approximation improving upon the previous one. No guarantee of convergence.\
-*Example :* CP-ALS[^4].
-2. *direct methods* : Solve the LRA problem using a fixed error threshold, and give a quasi-optimal approximation.\
-*Example :* HOSVD[^5], TT-SVD[^6].
-
-From those categories, the LRA can be done in two fashions:
-1. *fixed-rank*: by taking a desired rank ``q`` as parameter.
-2. *fixed-accuracy*: by taking a threshold accuracy ``\epsilon`` as parameter.
-
-[^4] : *The Expression of a Tensor or a Polyadic as a Sum of Products*, Frank L. Hitchcock, 1927.
-
-[^5] : *A multilinear singular value decomposition*, De Lathauwer et al., 2000
-
-[^6] : *Tensor-train decomposition*, Oseledets Ivan V, 2011
-"""
-
-# ╔═╡ 30f37314-f155-4baf-95be-0eaea02ae81c
-md"""
-We will take a **QR Column Pivoting (QRCP)**[^7] as example of LRA which is a QR decomposition with a column pivoting phase by a permutation matrix ``P`` with *fixed-accuracy* fashion.
-
-[^7] : _Matrix Computation, 4th edition_, Golub and all, section 5.4.2
-"""
-
-# ╔═╡ 2009efed-3524-4e2a-972a-a8e4f88329fb
+# ╔═╡ 8a0ca782-e5df-4f28-8eeb-53b710b901e2
 md"""
 ---
-
-> **_Question 11 :_** \
-> Implement your own Column Pivoting QR (own_qrcp)
+> **_Question 17 :_** \
+> Complete the code. The function will create a Tucker tensor ``\mathcal{Z}`` that approximate the full tensor ``\mathcal{X}``.
 """
 
-# ╔═╡ 2aa4d590-3aa6-4ff9-b112-529beba4751f
+# ╔═╡ 6eebf555-8b95-4e29-8799-344ccd1e4446
+begin
 """
-	own_qrcp(A::Array{Float64,2}, tol::Number)
-
-Function to compute the `QR Column Pivoting (QRCP)` of a matrix `A` with respect to the tolerance `tol`.
+	tensor_lra(X::Array, tol::Number)::TuckerTensor
 
 # Inputs :
-- `A::Array{Float64,2}` : The input matrix we will approximate.
-- `tol::Number` : The threshold tolerance of the approximation.
+- `X::Array` : The full tensor we want to transform in Tucker tensor.
+- `tol::Number` : The global tolerance to approximate the tensor.
 
 # Results :
-- `Q::Array{Float64,2}` and `R::Array{Float64,2}`, factors
-- `piv::Array{Int64}`, permutation vector
-- `rk::Number`, rank of A
+- `Z::TuckerTensor` : Return the Tucker tensor with all dimension of the core tensor `G` approximate (and also row dimensions of matrices).
 """
-function own_qrcp(A::Array{Float64,2}, tol::Number)
-
-    # Copy the matrix into R matrix
-	R = copy(A)
-	# Take matrix sizes
-    m, n = size(A)
+function tensor_lra(X::Array, tol::Number)::TuckerTensor
+	println("Core size at beginning : ", size(X))
+	# Create a copy of X
+	X_copy = copy(X)
+	# Store the order of the Tucker tensor
+	order = ndims(X)
+	# Create the local tolerance
+	epsilon_l = tol / sqrt(order)
+	# Create the vector of matrix Utilde which are modify U_i by the SVD on G_i.
+	U_tilde = Vector(undef, order)
 	
-	# Result rk, rank of A a priori n if A is full rank
-	rk = n
-  	# Initialize Q with I_m
-    Q = Matrix{Float64}(I, m, m)
+	# Iterate on each order of the tensor
+	for i = 1:order
+		# Matricize the copy tensor along the ith dimension
+		Xmat, perm = matricize(X_copy, i)
+		
+		# Apply an svd (from julia) on Xmat
+		U, S, V = svd(Xmat)
+		
+		# Calculate the tolerance relative to the norm of S, e.g. epsilon_l * ||S||
+		tol_rel = epsilon_l * norm(S)
+		
+		# Find the rank that reach the tolerance threshold
+		# If no rank reach the tolerance, take the full size of S.
+		taille = size(S)[1]
+		r = taille
+		for k = 1:taille 
+			if S[k] < tol_rel
+				r = k - 1
+				break	
+			end
+		end
+		#ok
+		
+		# Store the factour U from the SVD at the reached rank r
+		U_tilde[i] = U[:, 1:r]
+		println(size(U_tilde[i]))
 
-    # Compute colnorm, a vector of size $n$ containing the 2-norms 
-	# of the columns of R
-	colnorm = []
-	for i = 1:n # ICI
-		append!(colnorm, norm(R[:, i], 2)) # ICI
+		
+		# Do the multiplication of the factor U along the ith common dimension of the tensor and the matrix
+		X_copy = tensor_times_matrix(X_copy, U_tilde[i], i)
 	end
+
+	# Finally, generate the TuckerTensor by using the corresponding method. 
+	new_X = TuckerTensor(X_copy, U_tilde)
+	println("Core size after : ", size(X_copy))
 	
-    # Set piv, a permutation vector, with (1,2,.., n)
-	piv = [i for i = 1:n]
-    for k = 1:min(n, m)
-        # Pivot selection
-        # selects p, the column with the highest norm from the remaining columns
-        p, p_index = findmax(colnorm[k:n])
-		p_colonne = R[k:end, p_index] # end = m ICI
-
-        # Convergence check
-        # if p has a norm lower than $tol$, we cannot continue
-        # we exit the loop and we know the rank of A (which is?)
-        if p < tol
-			rk = k - 1
-			break
-		end
-        # Apply the k/p exchange to the relevant objects
-		piv[k], piv[p_index] = piv[p_index], piv[k] # On avait faut, il se peut qu'il y ai eu des pivots avant, il faut échanger les valeurs ! 
-		R[:, k], R[:, p_index] = R[:, p_index], R[:, k]
-
-        # Householder reflector
-        #  Compute v and sigma (see CTD); 
-		#  we chose to have $v$ with a 2-norm equals to 1
-		# sigma = sign(p[1])*norm(p_colonne)	# ok
-		
-		
-		# création de e1
-		e1 = zeros(size(p_colonne))
-		e1[1] = 1
-		u = p_colonne - norm(p_colonne) * sign(p_colonne[1]) * e1
-		if norm(u, 2) != 0 # ICI : vérif de pas obtenir un NaN (not a number)
-			v = u / norm(u, 2) # ICI
-		else # ICI
-			v = u # ICI
-		end # ICI
-
-		houseQ = Matrix{Float64}(I, m-k+1, m-k+1) - 2 *v*transpose(v) # ICI : erreur de ma part pour la formation de la matrice de householder
-		
-		# Création d'une nouvelle matrice remplie avec la valeur donnée
-		CorrectionHouseQ = Matrix{Float64}(I, m, m)
-		CorrectionHouseQ[k:m, k:m]=houseQ # ICI : pourquoi ça marchait pas, j'en sais rien.
-		
-        # Apply reflector to R
-        R =  CorrectionHouseQ * R # ICI : changement Q
-
-        # Apply reflector to Q
-        Q =  Q * CorrectionHouseQ # ICI : changement Q
-
-        # Update column norms
-		#update ton colnorm supposé OK
-		for i = k:n 		# may be m
-			colnorm[i] = norm(R[k:end, i], 2) # ICI : on faisait append donc colnorm devenait de plus en plus grand
-		end
-        
-    end
-
-	# Return Q, R, the permutation vector and the rank
-    return Q, R, piv, rk
+	return new_X
+end
 end
 
-# ╔═╡ 935c619c-071d-4c58-9df0-c20fc5fdba9e
-begin
-	# To test the function
-	## Answer ##
-	# Check the approximation (must be smaller or equal than tol)
-	Q, R, p, rk = own_qrcp(A_small, tol)
-
-	norm(A_small[:,p] - Q*R)   # should be <= tol
-end
-
-# ╔═╡ ac36e8b4-d1cc-4c45-a261-f142464aa22a
-begin
-	## Answer ##
-	# LRA of small non-randomized matrix (with time estimation)
-	@time own_qrcp(A_small, tol)
-
-	# LRA of small randomized matrix (with time estimation)
-	@time own_qrcp(B_small, tol)
-	nothing
-end
-
-# ╔═╡ 96f542c8-1772-4c05-b6fd-d0b15f37831a
-md"""
----
-"""
-
-# ╔═╡ 0d7b9571-7c0b-420b-9987-d819a91998b0
+# ╔═╡ edd9a164-274b-4239-94bb-f435300f99eb
 md"""
 ---
 
-> **_Question 12 :_** \
-> Play with size of matrices and plot the times and errors. Read carrefully the signature of the function to be able to understand how to benchmark your onw QRCP.
+To verify our method, we can execute `generate_expe_ten` and check if the resulting tensor will be compress after a call of `tensor_lra`. \
+_Note_ : The core tensor ``\mathcal{G}`` is cubic and ``U`` matrices have same dimensions.
+The tensor generation proceeds like this :
+1. We generate a Tucker tensor with `create_Tucker_tensor` function.
+2. Then we generate a new core for this Tucker tensor with `generate_expe_core` function. This function controls the behavior of singular values depending of the `rank` number we provide. In this case the singular values decay exponentially.
+3. We orthogonalise the Tucker tensor, which means we orthogonalise each matrices along the dimension of the core tensor such that, at the end, all main information are in the core tensor ``\mathcal{G}``. 
+
+---
 """
 
-# ╔═╡ 2bfe1656-60cd-4277-a37a-ebc065ddcb19
+# ╔═╡ 8396f843-a8b0-4f7e-933e-44b9bce3b80b
 begin
+function generate_expe_core(sizes,rank)
+		I,J,K = sizes
+		G = Array{Float64}(undef, I,J,K)
+		for i in 1:I
+			for j in 1:J
+				for k in 1:K
+					G[i,j,k] = exp(max(i,j,k))/exp(rank)
+				end
+			end
+		end
+	return G
+end
+	
 """
-	benchmark_qrcp(min_sizes::Int, max_sizes::Int, steps::Int)
-
-Function to benchmark the `QRCP` algorithm with matrices of sizes `(min_sizes, min_sizes)` to `(max_sizes, max_sizes)` with a step of `steps` and their random matrices associated.
-It returns the approximation and times of each methods (QRCP and randQRCP).
-
+	generate_expe_ten(order::Int, dimsG::Int, dimsU::Int, rank::Int)
+	
 # Inputs :
-- `min_sizes::Int` : the minimum size for the square matrix.
-- `max_sizes::Int` : the maximum size for the square matrix.
-- `stepes::Int` : the increasing sizes of matrices.
+- `order::Int` : The number corresponding to the order of the tensor.
+- `dimsG::Int` : The size of each dimensions of the core tensor ``\\mathcal{G}``.
+- `dimsU::Int` : The size of each dimensions of matrices ``U``.
+- `rank::Int` : The number corresponding to the rank of the tensor.
 
 # Results :
-- `p_err` : Plot of the error of the two methods.
-- `p_time` : Plot the time of the two methods.
-- `err_own` : Vector of error of the non-randomized matrix.
-- `t_own` : Vector of time of the non-randomized matrix.
-- `err_own_random` : Vector of error of the randomized matrix.
-- `t_own_random` : Vector of time of the randomized matrix.
+- `X::TuckerTensor` : Return the Tucker tensor sample with exponential decay of singular values.
 """
-function benchmark_qrcp(min_sizes::Int, max_sizes::Int, steps::Int)
-    # Matrix sizes to test
-    sizes = collect(min_sizes:steps:max_sizes)
-
-	# Time comparaison :
-	# Set vectors of time for matrix A and transform matrix B
-    t_own = zeros(length(sizes)) #TODO
-    t_own_random = zeros(length(sizes)) #TODO
-	
-	# Accuracy comparaison 
-	# Set vectors of accuracy for matrix A and transform matrix B
-	err_own = zeros(length(sizes)) #TODO
-    err_own_random = zeros(length(sizes)) #TODO
-
-	# For loop to execute and store the accuracy and time of each execution
-    for (i, n) in enumerate(sizes)
-		# Size of biggest dimension
-		mbench = 3*n
-		# Generate the matrix A
-        Abench = own_random(n, n) #pas trop sûre
-
-        # Benchmark custom QRCP
-		Q, R, p, rk = own_qrcp(Abench, tol)
-		
-		# Store the error approximation
-        err_own[i] = norm(Abench - Q*R, 2)
-		# Store the time (with @elapsed)
-        t_own[i] = @elapsed own_qrcp(Abench, tol)
-
-		# Generate the random matrix Omega
-		Omega = own_random(n, n)
-		# Generate the transform matrix B
-		B = Omega * Abench
-		AObench = B
-        # Benchmark custom rand QRCP
-		rQ, rR, rp, rrk = own_qrcp(AObench, tol)
-
-		# Store the error approximation
-        err_own_random[i] = norm(Abench[:,rp] - rQ*rR, 2)
-		# Store the time (with @elapsed)
-        t_own_random[i] = @elapsed own_qrcp(AObench, tol)
-    end
-
-	# Generate the plot of the error of the matrix A
-	p_err = plot(sizes, err_own, yscale = :log10, lw = 2, marker = :o, label = "Own QRCP", xlabel = "Matrix size (n)", ylabel = "‖A − QR‖", title = "QRCP Accuracy Comparison")
-	# Add the error of the transform matrix B in the plot
-    plot!(sizes, err_own_random, lw = 2, marker = :square, label = "random Own QRCP")
-
-	# Generate the plot of the time of the matrix A
-	p_time = plot(sizes, t_own, yscale = :log10, lw = 2, marker = :o, label = "Own QRCP", 			 xlabel = "Matrix size (n)", ylabel = "time", title = "QRCP time Comparison")
-	# Add the time of the transform matrix B in the plot
-    plot!(sizes, t_own_random, lw = 2, marker = :square, label = "random Own QRCP")
-
-	# Return the plot of the error, time and their vectors values
-	return p_err, p_time, err_own, t_own, err_own_random, t_own_random
-end
+	function generate_expe_ten(order::Int, dimsG::Int, dimsU::Int, rank::Int)::TuckerTensor
+		X = Solution_create_Tucker_tensor(order, dimsG, dimsU)
+		X.G = generate_expe_core(X.sizesG, rank)
+		tensor_orthog(X)
+		return X
+	end
 end
 
-# ╔═╡ f92be0d2-4cb7-4415-9bff-596cc099aa4b
+# ╔═╡ f71e7f2f-9084-4a2d-b178-573c78da4e6e
 begin
-	# To test the function
-	p_err, p_time, err_own, t_own, err_own_random, t_own_random = benchmark_qrcp(10, 150, 10)
+###############################################################################
+# WARNING : Do not modify the current cell (or ask to your teacher before) !  #
+###############################################################################
+	
+	# All tensor objects we use to test our function.
+	order = 3
+	small_dims = 300
+	small_cols = 100
+	small_rank = 41
+	
+	tt_G = generate_expe_core((small_dims,small_dims,small_dims), small_rank) 
+
+	# Small tensor to test your function
+	small_tucker = TuckerTensor(tt_G, repeat([randn(small_dims, small_cols)], order))
+	small_tensor = full(small_tucker)
+
+	# Biggest tensor
+	large_dims = 600
+	large_cols = 200
+	large_rank = 80
+	tt_G = generate_expe_core((large_dims,large_dims,large_dims), large_rank) 
+	large_tucker = TuckerTensor(tt_G, repeat([randn(large_dims, large_cols)], order))
+	large_tensor = full(large_tucker)
+
 	nothing
 end
 
-# ╔═╡ b2e1697c-349e-4b0c-8853-28cc07378b15
+# ╔═╡ 766e775b-22a6-47fc-af28-4bd4bd68dc1f
 begin
-	# The cell to print the error and time of the LRA and rand LRA
-	md"$p_err $p_time"
+	ourTucker = tensor_lra(copy(small_tensor), 1e-14);
 end
+
+# ╔═╡ 4bd5d761-e03d-45cb-92db-c62c56c0538c
+"""
+	verify_lra(A::TuckerTensor, B::TuckerTensor)
+
+# Inputs :
+- `A::TuckerTensor` : The original Tucker tensor we want to compare.
+- `B::TuckerTensor` : The approximate Tucker Tensor arise from `tensor_lra` function.
+
+# Results :
+- Shows the followings number :
+	- Relative error : The error approximation between `A` and `B`.
+	- Compression ratio : How much less dimensions we have compare to the original tensor `A`
+	- Speedup : How much faster we are to generate the `full` tensor between `A` and `B`.
+"""
+function verify_lra(A::TuckerTensor, B::TuckerTensor)
+	A_dense = full(A)
+    B_dense = full(B)
+	
+	# Check the time to decompress the tensor
+    tA = @elapsed full(A)
+    tB = @elapsed full(B)
+
+	# Check the approximation
+    err = norm(A_dense - B_dense)/norm(A_dense)
+
+	# Check the rank (compression)
+    original =  prod(A.sizesG) + sum(length(U) for U in A.U)
+    compressed = prod(B.sizesG) + sum(length(U) for U in B.U)
+
+    println("Relative error : ", err)
+    println("Compression ratio : ", original/compressed)
+	println("Speedup : ", tA/tB)
+end
+
+# ╔═╡ 1870bf27-9719-4494-87ee-7ae018292983
+verify_lra(small_tucker, ourTucker)
+
+# ╔═╡ 4c445f22-96e5-489f-a32f-4ba55a850aab
+md"""
+---
+> **_Question 18 :_** \
+> Use the `verify_lra` function to check the error approximation, rank compression and speedup.
+> Explain your results.
+"""
+
+# ╔═╡ 4d250b90-2c20-4147-8dab-cce3d3cba3f0
+md"""
+
+> **_Answer 18 :_** \
+> @TODO
+"""
+
+# ╔═╡ 6358f49e-f59d-4064-8402-0f3b833f8a46
+md"""
+---
+#### IV.4. Adding randomized matrices in the low-rank approximation
+"""
+
+# ╔═╡ d4645c4b-f1b5-47c1-996f-b270cfb80c1c
+md"""
+In this section we will use randomized matrices on the tensor low-rank approximation and see the impact on it.
+
+To do it, copy the `tensor_lra` function, and instead of applying the SVD (from julia), use your own random low-rank approximation method !
+
+You can first just applying the randomized method with SVD to check the method. 
+
+The second implementation will be to comment the SVD part and try to use your own LRA method define in the first course **(you can copy/paste the corresponding cell from the previous notebook)**.
+
+For the submission, uncomment the method you want applied and keep the other commented.
+"""
+
+# ╔═╡ ac1e932d-1ab2-4a5d-8a91-b37ef17f6e2f
+md"""
+---
+> **_Question 19 :_** \
+> Complete the code. The function will create a Tucker tensor ``\mathcal{Z}`` that approximate the full tensor ``\mathcal{X}`` **with randomized LRA**.
+"""
+
+# ╔═╡ 03c0ce02-97b3-455e-8121-f3f9ab6f86e0
+begin
+"""
+	randomized_tensor_lra(X::Array, tol::Number)::TuckerTensor
+
+# Inputs :
+- `X::Array` : The full tensor we want to transform in Tucker tensor.
+- `tol::Number` : The global tolerance to approximate the tensor.
+
+# Results :
+- `Z::TuckerTensor` : Return the Tucker tensor with all dimension of the core tensor `G` approximate (and also row dimensions of matrices).
+"""
+function randomized_tensor_lra(X::Array, tol::Number)::TuckerTensor
+	println("Core size at beginning : ", size(X))
+	# Create a copy of X
+	@TODO
+	# Store the order of the Tucker tensor
+	@TODO
+	# Create the local tolerance
+	@TODO
+	# Create the vector of matrix Utilde which are modify U_i by the SVD on G_i.
+	@TODO
+	
+	# Iterate on each order of the tensor
+	for i = @TODO
+		# Matricize the copy tensor along the ith dimension
+		@TODO
+
+		### Start 1st Way : ##
+		# 1st way : Still using SVD on a randomised Xmat
+		@TODO
+
+		# Calculate the tolerance relative to the norm of S, e.g. epsilon_l * ||S||
+		@TODO
+		
+		# Find the rank that reach the tolerance threshold
+		# If no rank reaches the tolerance, take the full size of S.
+		@TODO
+		### End 1st Way : ##
+
+		### Start 2st Way : ##
+		# # 2nd way : Using own LRA method
+		# @TODO
+
+		##########################onw_qrcp
+		### End 2st Way : ##
+		
+		# Store the factor U from the SVD at the reached rank r
+		@TODO
+		
+		# Do the multiplication of the factor U along the ith common dimension of the tensor and the matrix
+		@TODO
+	end
+
+	# Finally, generate the TuckerTensor by using the corresponding method. 
+	@TODO
+	println("Core size after : ", @TODO)
+	return @TODO
+end
+end
+
+# ╔═╡ 20197b1f-f202-4a7a-894f-3e48526bf54e
+# Check the time to decompress the tensor
+function test_speedup(A)
+	A_copy = copy(A)
+	tOriginal = @elapsed tensor_lra(A_copy, 1e-14)
+    A_copy = copy(A)
+	tRand = @elapsed randomized_tensor_lra(A_copy, 1e-14)
+	Arand = randomized_tensor_lra(A_copy, 1e-14)
+
+	println("Relative error :", norm(A - full(Arand))/norm(A))
+	println("Speedup : ", tOriginal/tRand)
+end
+
+# ╔═╡ 55fb542f-4e25-4929-a577-11a6625c46c7
+test_speedup(small_tensor)
+
+# ╔═╡ e1c9f4d1-f5a6-4385-850c-9dea2ecb5fc2
+md"""
+---
+> **_Question 20 :_** \
+> Use the `test_speedup` function to check the speedup.
+> Explain your results.
+"""
+
+# ╔═╡ 053446fa-e275-4270-b2bf-6ecedbdbaaf1
+md"""
+
+> **_Answer 20 :_** \
+> @TODO
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -3281,71 +3096,53 @@ version = "1.9.2+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─2eeb3b3d-c790-4b91-ad78-70ff4fb8081b
-# ╟─a6ea2397-fee6-4f82-b34e-fca09e11a870
-# ╟─4df44f34-bad1-4174-b5dd-5c9188598a10
-# ╠═c0426804-fc39-4874-9239-c46c2f7519c5
-# ╟─8d0ce6f3-b758-4720-b400-2d49d2659ed9
-# ╟─94e07711-6648-40ec-8ec4-d3b24cfd04d1
-# ╟─c3347b93-1d44-4bc1-a088-c52b8846de8d
-# ╟─44808382-6188-449a-a6d1-1138f8dbe8b1
-# ╟─4c15b971-5cc0-4561-a246-ebc0b4bd90da
-# ╟─169daa90-2798-4f2a-b371-a7a313374966
-# ╟─edef97e8-b44f-4b3e-be58-680b80f6c832
-# ╟─4b68cae1-d3b2-4051-aaae-12ba10c9d274
-# ╠═00fbe68c-1ff6-4d4d-a372-4e93e6ad05d0
-# ╠═4350ccce-83bd-4fe7-be73-7ffb8d37bbd2
-# ╟─b84f1a43-3cb3-41c7-b302-3b61a68885f3
-# ╟─347fb7c9-e96e-4046-a237-5a1628ca5b4f
-# ╟─fb894a5b-e0a0-42e7-aa03-bcfa8d889413
-# ╟─d7c016b8-adcd-4852-96ff-b899c06134b3
-# ╟─8961d5b7-3fe7-4801-99bb-1571bd7fe31f
-# ╟─35a9f521-9e13-411c-9f59-d9c5ffc12d29
-# ╟─ff21dcca-7aec-4cd7-93e2-1be536a38658
-# ╟─4107af5d-d60b-433c-9f0f-748e0ec80ef8
-# ╟─2adeaa41-37db-4200-88a9-7d7e0a086939
-# ╟─5969313a-3e2b-45ca-8d94-1ea4e326ed86
-# ╟─999ba2fd-2bcf-4257-83b8-119acf604e24
-# ╠═d7fcc295-afe2-42de-8e23-3eaa24377a0a
-# ╠═6d231b8c-0ea8-4820-9319-f10ca87ae9e4
-# ╟─95b8fb57-7be9-4671-a8db-e189d20efcb6
-# ╟─7fb26e82-736f-4f26-922a-c40133644098
-# ╟─72341cab-1f3b-49c1-b372-ffe3bf257549
-# ╟─75ee77ca-1f40-427a-b483-ec68c68ea491
-# ╟─82651b4c-5f5f-4e83-8738-6144e533c9a5
-# ╟─1a1ffc32-a583-4ab9-94c1-7546b1c60733
-# ╟─5977bb03-1b8c-4cc3-9ee3-bbdb6deedbe7
-# ╟─3702b36e-fd82-4ed9-a659-5704e885ff85
-# ╠═4683b60e-9190-49ea-b0e4-641f02198dab
-# ╠═29d2aae4-2aa4-4966-b970-816c6d04025c
-# ╟─8ce176ce-7c48-4f6d-a36f-eaa9341d179f
-# ╟─071d85f7-b062-45cf-8d18-dace01f7170c
-# ╟─adca2886-9f4b-4506-8e69-c3faa56a098b
-# ╟─041920d3-d3a8-4e34-9c70-3b76ffc068f6
-# ╟─39aeaf1f-20e2-4a8c-9750-49ff1fbfe54f
-# ╠═d21d5cd7-8f15-4557-8596-496294fe0128
-# ╠═4f8a9ea9-b558-4715-baae-befc1d3435e7
-# ╠═dfa31f14-eae0-49a3-9815-610526b0e525
-# ╠═009baa44-2b76-4d08-b22b-c08b65fbbeb3
-# ╟─16140f1f-b6ac-4649-9c6c-2868167fa449
-# ╠═b9365f21-84ee-4c55-a030-8e5d8ad521e7
-# ╠═ad6a05b1-6964-4851-ac81-8d640054853a
-# ╠═376254b1-1308-4832-a77d-38b02d16cec6
-# ╟─0c67c1b4-7021-4e8c-b8b5-efad55b73de6
-# ╟─3fc18c26-3171-4950-9385-dc4058a91f82
-# ╟─7c1cbb4b-7bfb-43d0-93c5-ba42445b1dc3
-# ╟─1f505d72-9af3-4eec-bdce-1f1f79ac53f2
-# ╟─1a2a4832-3431-4818-9c85-e8863d4c6f2d
-# ╟─e3044dca-1ae1-414a-b343-3d925fcf83de
-# ╟─30f37314-f155-4baf-95be-0eaea02ae81c
-# ╟─2009efed-3524-4e2a-972a-a8e4f88329fb
-# ╠═2aa4d590-3aa6-4ff9-b112-529beba4751f
-# ╠═935c619c-071d-4c58-9df0-c20fc5fdba9e
-# ╠═ac36e8b4-d1cc-4c45-a261-f142464aa22a
-# ╟─96f542c8-1772-4c05-b6fd-d0b15f37831a
-# ╟─0d7b9571-7c0b-420b-9987-d819a91998b0
-# ╠═2bfe1656-60cd-4277-a37a-ebc065ddcb19
-# ╠═f92be0d2-4cb7-4415-9bff-596cc099aa4b
-# ╠═b2e1697c-349e-4b0c-8853-28cc07378b15
+# ╟─11885856-51c2-4522-bf13-fdbc3a2d3f39
+# ╠═f71e7f2f-9084-4a2d-b178-573c78da4e6e
+# ╟─6fa90144-6885-4816-864c-6e779f169583
+# ╟─573225a7-f31a-43aa-aa97-3ff62cb5cf64
+# ╟─539c856e-a3f3-40a9-a3ad-be0fffca3a75
+# ╟─20615c19-6af0-462b-a3a2-3a2b225772ff
+# ╟─831f236b-05af-4838-a5f9-5ca34bed7b80
+# ╟─9802f6b6-4aa1-42c2-9ea8-8f7db3fcf022
+# ╟─fd10360a-752d-440c-a1d4-b38ab4199601
+# ╟─7fe5fcea-8ab8-4acd-8a8f-c5c297e7ba91
+# ╟─98bb8a73-c212-49ba-847c-d450670dfab2
+# ╟─a03e8065-7e84-44c0-bf01-d4dfdeeca250
+# ╟─51ff9375-5321-44be-bdad-629f3b7151ba
+# ╟─90bbf108-6916-4d98-8f60-940831249688
+# ╟─880c457c-e5de-4ad7-a7fb-06296ed44196
+# ╠═7fb00138-560c-4996-9c57-58db6959fea7
+# ╟─802a9a07-7e3b-41b0-aa81-14b34c137499
+# ╠═d661a9e0-d411-41e5-b79a-b319f7210f0f
+# ╠═d75bccee-62de-4efa-905c-25385ba0cdc5
+# ╟─2b0682bf-1092-4cc9-a607-5db66087f58e
+# ╟─4864b5d2-0f12-4880-a435-3e2fbf60f308
+# ╟─5032697c-abe9-4bef-8435-a2c5a1f45ebf
+# ╠═2b489d97-223d-4590-b170-2e29d0a53e31
+# ╟─d6f74531-8ef8-4ec1-890e-40a0366ef78f
+# ╟─b3773a6c-416e-40a3-bec0-32e51e4671d5
+# ╠═0d1a9463-8b5f-4022-b706-3532f4fb5238
+# ╠═27577f5d-28e2-4c4a-b581-629cbbfd6446
+# ╟─7d926fd5-058e-4916-bfef-ce0f06c372cd
+# ╟─b982a1c7-3b44-46c4-8356-bc7486e9d943
+# ╟─db9c30ac-5d37-4a0c-9182-43f037f33f4d
+# ╟─9f4c660c-bbbd-4171-b496-e68e7e243d20
+# ╟─8a0ca782-e5df-4f28-8eeb-53b710b901e2
+# ╠═6eebf555-8b95-4e29-8799-344ccd1e4446
+# ╟─edd9a164-274b-4239-94bb-f435300f99eb
+# ╠═8396f843-a8b0-4f7e-933e-44b9bce3b80b
+# ╠═766e775b-22a6-47fc-af28-4bd4bd68dc1f
+# ╠═4bd5d761-e03d-45cb-92db-c62c56c0538c
+# ╠═1870bf27-9719-4494-87ee-7ae018292983
+# ╟─4c445f22-96e5-489f-a32f-4ba55a850aab
+# ╟─4d250b90-2c20-4147-8dab-cce3d3cba3f0
+# ╟─6358f49e-f59d-4064-8402-0f3b833f8a46
+# ╟─d4645c4b-f1b5-47c1-996f-b270cfb80c1c
+# ╟─ac1e932d-1ab2-4a5d-8a91-b37ef17f6e2f
+# ╠═03c0ce02-97b3-455e-8121-f3f9ab6f86e0
+# ╠═20197b1f-f202-4a7a-894f-3e48526bf54e
+# ╠═55fb542f-4e25-4929-a577-11a6625c46c7
+# ╟─e1c9f4d1-f5a6-4385-850c-9dea2ecb5fc2
+# ╟─053446fa-e275-4270-b2bf-6ecedbdbaaf1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
