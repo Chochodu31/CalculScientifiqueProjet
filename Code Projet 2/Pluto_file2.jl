@@ -315,6 +315,7 @@ function full(X::TuckerTensor)
     T = X.G
     for i in 1:X.order
         T = tensor_times_matrix(T, X.U[i], i) # See code below
+		
     end
     return T
 end
@@ -579,12 +580,11 @@ function tensor_lra(X::Array, tol::Number)::TuckerTensor
 		#ok
 		
 		# Store the factour U from the SVD at the reached rank r
-		U_tilde[i] = U[:, 1:r]
-		println(size(U_tilde[i]))
+		U_tilde[i] = transpose(U[:, 1:r])
 
 		
 		# Do the multiplication of the factor U along the ith common dimension of the tensor and the matrix
-		X_copy = tensor_times_matrix(X_copy, U_tilde[i], i)
+		X_copy = tensor_times_matrix(X_copy, transpose(U_tilde[i]), i)
 	end
 
 	# Finally, generate the TuckerTensor by using the corresponding method. 
@@ -727,7 +727,10 @@ md"""
 md"""
 
 > **_Answer 18 :_** \
-> @TODO
+> Généralement les ordinateurs ont une précision ``\approx 10^{-16}`` \
+> Relative error = `` 3.46^{-15}`` \
+> Donc: on est très proche de l'erreur du à la machine. On perd très peu d'informations. \
+> 
 """
 
 # ╔═╡ 6358f49e-f59d-4064-8402-0f3b833f8a46
@@ -3097,7 +3100,7 @@ version = "1.9.2+0"
 
 # ╔═╡ Cell order:
 # ╟─11885856-51c2-4522-bf13-fdbc3a2d3f39
-# ╠═f71e7f2f-9084-4a2d-b178-573c78da4e6e
+# ╟─f71e7f2f-9084-4a2d-b178-573c78da4e6e
 # ╟─6fa90144-6885-4816-864c-6e779f169583
 # ╟─573225a7-f31a-43aa-aa97-3ff62cb5cf64
 # ╟─539c856e-a3f3-40a9-a3ad-be0fffca3a75
@@ -3135,7 +3138,7 @@ version = "1.9.2+0"
 # ╠═4bd5d761-e03d-45cb-92db-c62c56c0538c
 # ╠═1870bf27-9719-4494-87ee-7ae018292983
 # ╟─4c445f22-96e5-489f-a32f-4ba55a850aab
-# ╟─4d250b90-2c20-4147-8dab-cce3d3cba3f0
+# ╠═4d250b90-2c20-4147-8dab-cce3d3cba3f0
 # ╟─6358f49e-f59d-4064-8402-0f3b833f8a46
 # ╟─d4645c4b-f1b5-47c1-996f-b270cfb80c1c
 # ╟─ac1e932d-1ab2-4a5d-8a91-b37ef17f6e2f
