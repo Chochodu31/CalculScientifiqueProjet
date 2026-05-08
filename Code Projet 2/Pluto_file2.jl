@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.20.23
 
 using Markdown
 using InteractiveUtils
@@ -315,7 +315,6 @@ function full(X::TuckerTensor)
     T = X.G
     for i in 1:X.order
         T = tensor_times_matrix(T, X.U[i], i) # See code below
-		
     end
     return T
 end
@@ -727,10 +726,9 @@ md"""
 md"""
 
 > **_Answer 18 :_** \
-> Généralement les ordinateurs ont une précision ``\approx 10^{-16}`` \
+>  Généralement les ordinateurs ont une précision ``\approx 10^{-16}`` \
 > Relative error = `` 3.46^{-15}`` \
 > Donc: on est très proche de l'erreur du à la machine. On perd très peu d'informations. \
-> 
 """
 
 # ╔═╡ 6358f49e-f59d-4064-8402-0f3b833f8a46
@@ -759,6 +757,98 @@ md"""
 > Complete the code. The function will create a Tucker tensor ``\mathcal{Z}`` that approximate the full tensor ``\mathcal{X}`` **with randomized LRA**.
 """
 
+# ╔═╡ 02b7a863-08b8-4134-9717-61bbeae65cc8
+"""
+	own_qrcp(A::Array{Float64,2}, tol::Number)
+
+Function to compute the `QR Column Pivoting (QRCP)` of a matrix `A` with respect to the tolerance `tol`.
+
+# Inputs :
+- `A::Array{Float64,2}` : The input matrix we will approximate.
+- `tol::Number` : The threshold tolerance of the approximation.
+
+# Results :
+- `Q::Array{Float64,2}` and `R::Array{Float64,2}`, factors
+- `piv::Array{Int64}`, permutation vector
+- `rk::Number`, rank of A
+"""
+function own_qrcp(A::Array{Float64,2}, tol::Number)
+
+    # Copy the matrix into R matrix
+	R = copy(A)
+	# Take matrix sizes
+    m, n = size(A)
+	
+	# Result rk, rank of A a priori n if A is full rank
+	rk = n
+  	# Initialize Q with I_m
+    Q = Matrix{Float64}(I, m, m)
+
+    # Compute colnorm, a vector of size $n$ containing the 2-norms 
+	# of the columns of R
+	colnorm = []
+	for i = 1:n 
+		append!(colnorm, norm(R[:, i], 2))
+	end
+	
+    # Set piv, a permutation vector, with (1,2,.., n)
+	piv = [i for i = 1:n]
+    for k = 1:min(n, m)
+        # Pivot selection
+        # selects p, the column with the highest norm from the remaining columns
+        p, p_index = findmax(colnorm[k:n])
+		p_colonne = R[k:end, p_index] 
+
+        # Convergence check
+        # if p has a norm lower than $tol$, we cannot continue
+        # we exit the loop and we know the rank of A (which is?)
+        if p < tol
+			rk = k - 1
+			break
+		end
+        # Apply the k/p exchange to the relevant objects
+		piv[k], piv[p_index] = piv[p_index], piv[k]  
+		R[:, k], R[:, p_index] = R[:, p_index], R[:, k]
+
+        # Householder reflector
+        #  Compute v and sigma (see CTD); 
+		#  we chose to have $v$ with a 2-norm equals to 1
+		# sigma = sign(p[1])*norm(p_colonne)	# ok
+		
+		
+		# création de e1
+		e1 = zeros(size(p_colonne))
+		e1[1] = 1
+		u = p_colonne - norm(p_colonne) * sign(p_colonne[1]) * e1
+		if norm(u, 2) != 0 
+			v = u / norm(u, 2) 
+		else 
+			v = u 
+		end 
+
+		houseQ = Matrix{Float64}(I, m-k+1, m-k+1) - 2 *v*transpose(v) 
+		
+		# Création d'une nouvelle matrice remplie avec la valeur donnée
+		CorrectionHouseQ = Matrix{Float64}(I, m, m)
+		CorrectionHouseQ[k:m, k:m]=houseQ 
+		
+        # Apply reflector to R
+        R =  CorrectionHouseQ * R 
+
+        # Apply reflector to Q
+        Q =  Q * CorrectionHouseQ
+		
+        # Update column norms
+		#update ton colnorm supposé OK
+		for i = k:n 
+			colnorm[i] = norm(R[k:end, i], 2) 
+		end
+    end
+
+	# Return Q, R, the permutation vector and the rank
+    return Q, R, piv, rk
+	end
+
 # ╔═╡ 03c0ce02-97b3-455e-8121-f3f9ab6f86e0
 begin
 """
@@ -774,49 +864,56 @@ begin
 function randomized_tensor_lra(X::Array, tol::Number)::TuckerTensor
 	println("Core size at beginning : ", size(X))
 	# Create a copy of X
-	@TODO
+	X_copy = copy(X)
 	# Store the order of the Tucker tensor
-	@TODO
+	order = ndims(X)
 	# Create the local tolerance
-	@TODO
+	epsilon_l = tol / sqrt(order)
 	# Create the vector of matrix Utilde which are modify U_i by the SVD on G_i.
-	@TODO
+	U_tilde = Vector(undef, order)
 	
 	# Iterate on each order of the tensor
-	for i = @TODO
+	for i = 1:order
 		# Matricize the copy tensor along the ith dimension
-		@TODO
-
+		Xmat, perm = matricize(X_copy, i)
+		
 		### Start 1st Way : ##
 		# 1st way : Still using SVD on a randomised Xmat
-		@TODO
-
+		#U, S, V = svd(Xmat)
+		
 		# Calculate the tolerance relative to the norm of S, e.g. epsilon_l * ||S||
-		@TODO
+		#tol_rel = epsilon_l * norm(S)
 		
 		# Find the rank that reach the tolerance threshold
 		# If no rank reaches the tolerance, take the full size of S.
-		@TODO
+		#taille = size(S)[1]
+		#r = taille
+		#for k = 1:taille 
+		#	if S[k] < tol_rel
+		#		r = k - 1
+		#		break	
+		#	end
+		#end
 		### End 1st Way : ##
 
 		### Start 2st Way : ##
 		# # 2nd way : Using own LRA method
-		# @TODO
+		U, R, piv, r =  own_qrcp(Xmat, epsilon_l)
 
-		##########################onw_qrcp
-		### End 2st Way : ##
+		r = min(r, size(U, 2))
+		### End 2nd Way : ##
 		
 		# Store the factor U from the SVD at the reached rank r
-		@TODO
+		U_tilde[i] = transpose(U[:, 1:r])
 		
 		# Do the multiplication of the factor U along the ith common dimension of the tensor and the matrix
-		@TODO
+		X_copy = tensor_times_matrix(X_copy, transpose(U_tilde[i]), i)
 	end
 
 	# Finally, generate the TuckerTensor by using the corresponding method. 
-	@TODO
-	println("Core size after : ", @TODO)
-	return @TODO
+	new_X = TuckerTensor(X_copy, U_tilde)
+	println("Core size after : ", size(X_copy))
+	return new_X
 end
 end
 
@@ -848,7 +945,14 @@ md"""
 md"""
 
 > **_Answer 20 :_** \
-> @TODO
+> 1st Way : \
+> Relative error = 7.40e-15  proche de e-16 donc l'erreur machine qui s'accumule\
+> Speedup = 0.98 => Donc comme meme méthode on a une vitesse identique normal car on utilise la même méthode.\
+> 2nd Way : \
+> Relative error = 3.26e-15 \
+> Speedup = 0.09 => Ce programme est donc environ 10 fois plus lent que notre programme.\
+> On remarque que le programme est bien 10 fois plus lent mais que la précision est augmenter par 2. \
+
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -3100,7 +3204,7 @@ version = "1.9.2+0"
 
 # ╔═╡ Cell order:
 # ╟─11885856-51c2-4522-bf13-fdbc3a2d3f39
-# ╟─f71e7f2f-9084-4a2d-b178-573c78da4e6e
+# ╠═f71e7f2f-9084-4a2d-b178-573c78da4e6e
 # ╟─6fa90144-6885-4816-864c-6e779f169583
 # ╟─573225a7-f31a-43aa-aa97-3ff62cb5cf64
 # ╟─539c856e-a3f3-40a9-a3ad-be0fffca3a75
@@ -3142,10 +3246,11 @@ version = "1.9.2+0"
 # ╟─6358f49e-f59d-4064-8402-0f3b833f8a46
 # ╟─d4645c4b-f1b5-47c1-996f-b270cfb80c1c
 # ╟─ac1e932d-1ab2-4a5d-8a91-b37ef17f6e2f
+# ╠═02b7a863-08b8-4134-9717-61bbeae65cc8
 # ╠═03c0ce02-97b3-455e-8121-f3f9ab6f86e0
 # ╠═20197b1f-f202-4a7a-894f-3e48526bf54e
 # ╠═55fb542f-4e25-4929-a577-11a6625c46c7
 # ╟─e1c9f4d1-f5a6-4385-850c-9dea2ecb5fc2
-# ╟─053446fa-e275-4270-b2bf-6ecedbdbaaf1
+# ╠═053446fa-e275-4270-b2bf-6ecedbdbaaf1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
