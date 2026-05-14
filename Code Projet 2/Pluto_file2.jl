@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.23
+# v0.20.24
 
 using Markdown
 using InteractiveUtils
@@ -729,6 +729,16 @@ md"""
 >  Généralement les ordinateurs ont une précision ``\approx 10^{-16}`` \
 > Relative error = `` 3.46^{-15}`` \
 > Donc: on est très proche de l'erreur du à la machine. On perd très peu d'informations. \
+> \
+> Rank compression : ``752.5`` \
+> Donc : Il y a un énorme gain d'espace. \
+> \
+> Speedup : ``74.10`` \
+> Donc : On s'attendait à un gain de temps en vue de la réduction du nombre de paramètres considéré, et en effet, les calculs s'éxécute jusqu'à 74 fois plus rapidement. \
+> \
+> \
+> Conclusion : \
+> L'utilisation d'un low rank approximation est très profitable, puisque la matrice nouvellement crée est très proche de l'original (à des erreurs machines). On a un gain de place considérable et les calculs s'effectuent bien plus rapidement. \
 """
 
 # ╔═╡ 6358f49e-f59d-4064-8402-0f3b833f8a46
@@ -947,7 +957,7 @@ md"""
 > **_Answer 20 :_** \
 > 1st Way : \
 > Relative error = 7.40e-15  proche de e-16 donc l'erreur machine qui s'accumule\
-> Speedup = 0.98 => Donc comme meme méthode on a une vitesse identique normal car on utilise la même méthode.\
+> Speedup = 0.98 => Donc comme même méthode on a une vitesse identique normal car on utilise la même méthode.\
 > 2nd Way : \
 > Relative error = 3.26e-15 \
 > Speedup = 0.09 => Ce programme est donc environ 10 fois plus lent que notre programme.\
